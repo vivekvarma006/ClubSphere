@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       # NEXT_PUBLIC_* values are inlined at build time. CI builds use
@@ -22,12 +22,18 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder_for_ci_build
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
+
+      # Node 22 bundles npm 10, but the lockfile is maintained with npm 11
+      # locally. Mismatched npm versions disagree about optional platform
+      # packages and make `npm ci` reject the lockfile.
+      - name: Use npm 11
+        run: npm install -g npm@11.6.2
 
       - run: npm ci
 

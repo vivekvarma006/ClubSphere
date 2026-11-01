@@ -10,7 +10,7 @@ ClubSphere is **club-agnostic**. No club, university or role name is hardcoded. 
 
 | Phase | Scope | State |
 |---|---|---|
-| 1. Foundation | Identity, organizations, per-org roles and permissions, membership requests and review, suspension, audit log, report views, auth plumbing, CI | ✅ Built: 190 automated tests |
+| 1. Foundation | Identity, organizations, per-org roles and permissions, membership requests and review, suspension, audit log, report views, auth plumbing, CI | ✅ Built and covered by automated tests |
 | 2. Onboarding UI | Sign-in/up, organization selection, profile questions, request status, reviewer dashboard | ⏳ Next |
 | 3. Modules | Events and registrations, QR check-in, food distribution, inventory, volunteers, CTF, certificates, pgvector semantic search, contribution analytics | 📐 Designed ([ER diagram](docs/DATABASE.md#3-er-diagram-full-system)) |
 
@@ -53,7 +53,7 @@ supabase/migrations/   SQL schema: the source of truth
 supabase/queries/      demonstration queries (reports, DDL/DML)
 supabase/bootstrap/    one-time SQL to create the first admin and club
 src/server/            server-only: auth, authorization, DB access, services, validation
-src/app/               routes: /auth/callback, /auth/confirm, /auth/error, /api/health
+src/app/               routes: /auth/callback, /auth/confirm, /auth/error, /auth/update-password, /api/health
 test/                  db (PGlite), integration, unit, concurrency (real Postgres), e2e
 docs/                  documentation
 ```

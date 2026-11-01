@@ -14,7 +14,7 @@ type SearchParams = PageProps<"/auth/error">["searchParams"];
 
 async function Reason({ searchParams }: { searchParams: SearchParams }) {
   const { reason } = await searchParams;
-  const message = typeof reason === "string" ? MESSAGES[reason] : undefined;
+  const message = typeof reason === "string" && Object.hasOwn(MESSAGES, reason) ? MESSAGES[reason] : undefined;
   return <p className="text-zinc-600">{message ?? FALLBACK}</p>;
 }
 

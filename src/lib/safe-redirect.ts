@@ -13,7 +13,9 @@ export function safeNextPath(raw: string | null | undefined, fallback = "/"): st
 
   try {
     const url = new URL(raw, PLACEHOLDER_ORIGIN);
-    if (url.origin !== PLACEHOLDER_ORIGIN) return fallback;
+    // Dot segments (including %2e) can turn a same-site input into a path
+    // beginning with //, which becomes off-site when resolved again.
+    if (url.origin !== PLACEHOLDER_ORIGIN || url.pathname.startsWith("//")) return fallback;
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return fallback;

@@ -40,3 +40,20 @@ test("auth error page explains known reasons", async ({ request }) => {
   const res = await request.get("/auth/error?reason=link_expired");
   expect(await res.text()).toContain("This link has expired or has already been used.");
 });
+
+test("auth error page treats inherited object keys as unknown reasons", async ({ request }) => {
+  for (const reason of ["__proto__", "constructor", "toString"]) {
+    const res = await request.get(`/auth/error?reason=${reason}`);
+    expect(res.status()).toBe(200);
+    expect(await res.text()).toContain("Something went wrong while signing you in.");
+  }
+});
+
+test("password recovery destination exists and explains a missing session", async ({ request }) => {
+  const res = await request.get("/auth/update-password");
+  expect(res.status()).toBe(200);
+  const html = await res.text();
+  expect(html).toContain("Choose a new password");
+  expect(html).toContain("Open the password recovery link");
+  expect(html).not.toContain('name="password"');
+});

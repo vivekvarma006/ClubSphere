@@ -21,6 +21,9 @@ drop trigger if exists on_auth_user_created on auth.users;
 drop table if exists public.membership_roles;
 drop table if exists public.organization_memberships;
 drop table if exists public.membership_requests;
+-- The hardened role-delete policy reads role_permissions (20261102000100).
+-- Remove that dependency before dropping the child table.
+drop policy if exists organization_roles_delete on public.organization_roles;
 drop table if exists public.role_permissions;
 drop table if exists public.organization_roles;
 drop table if exists public.permissions;

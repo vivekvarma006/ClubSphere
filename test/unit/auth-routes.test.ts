@@ -45,6 +45,12 @@ describe("GET /auth/callback", () => {
     expect(location(res)).toBe("https://app.example.test/");
   });
 
+  it("rejects paths that normalize into a protocol-relative redirect", async () => {
+    auth.exchangeCodeForSession.mockResolvedValue(ok);
+    const res = await callback(get("/auth/callback?code=abc&next=" + encodeURIComponent("/a/..//evil.example")));
+    expect(location(res)).toBe("https://app.example.test/");
+  });
+
   it("reports a provider error without calling Supabase", async () => {
     const res = await callback(get("/auth/callback?error=access_denied"));
     expect(auth.exchangeCodeForSession).not.toHaveBeenCalled();

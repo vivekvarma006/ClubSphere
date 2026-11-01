@@ -36,6 +36,7 @@ These are the **defaults seeded for every new organization**. An owner can chang
 3. **At least one active owner.** Revoking the owner role or suspending an owner fails if no other active owner would remain. Operations lock the organization row first, so two owners cannot remove each other at the same moment.
 4. **No self-service authority.** Nobody can suspend/reinstate themselves or review their own request. Sign-up never creates memberships or roles.
 5. **No direct writes.** API roles have no INSERT/UPDATE/DELETE privileges on membership tables or the audit log; `is_system`, `is_default`, `slug` and `status` columns are not writable.
+6. **Custom role deletion.** Deleting a role cascades to its permissions and membership assignments. It therefore requires both `role.manage` and `role.assign`, plus every permission on the target role. System roles remain protected. Migration `20261102000100_role_delete_authorization.sql` applies this rule to existing databases.
 
 ## Authorization matrix
 

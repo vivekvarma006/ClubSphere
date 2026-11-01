@@ -10,7 +10,7 @@
 
 ```bash
 npm ci
-npm test               # 190 tests on an in-memory Postgres (PGlite)
+npm test               # unit + database + integration tests (PGlite; no cloud account)
 npm run demo:reports   # prints the report queries on sample data
 ```
 

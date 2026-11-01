@@ -45,7 +45,7 @@ Prepare beforehand: `npm ci`, run `npm test` once (so it's fast), open VS Code w
 2. **DDL** (1 min). Open [0600_memberships.sql](../supabase/migrations/20261024000600_memberships.sql): the partial unique index (line 46) and the CHECK that ties status to timestamps (line 33). Optionally paste [ddl_dml_demo.sql](../supabase/queries/ddl_dml_demo.sql) into the Supabase SQL editor: CREATE / ALTER / INSERT / UPDATE / DELETE / DROP inside a rolled-back transaction.
 3. **Reports** (2 min). Run `npm run demo:reports`. Read out query 1 (average review time per organization) and explain GROUP BY + AVG. Then queries 9 and 10: the **same view** returns only Alpha for Alpha's owner and only Beta for Beta's owner. That is RLS.
 4. **Procedure + transaction** (2 min). Open [`approve_membership_request`](../supabase/migrations/20261024000700_authorization_and_procedures.sql#L435): lock org → check permission → `FOR UPDATE` → status check → insert membership + role → update request, all in one transaction.
-5. **Tests** (1 min). Run `npm test`: 190 tests, many of them *forbidden* cases ("officer of club B cannot approve club A's request").
+5. **Tests** (1 min). Run `npm test`: unit, database and integration tests, many of them *forbidden* cases ("officer of club B cannot approve club A's request"). See TEST_STRATEGY.md for verified counts and concurrency results.
 
 ### Novelty: what is different from a typical club-management project
 
@@ -68,7 +68,7 @@ Prepare beforehand: `npm ci`, run `npm test` once (so it's fast), open VS Code w
 | Sign-in / sign-up / onboarding / reviewer screens | ⏳ Phase 2 |
 | Events, registrations, QR attendance, food, inventory, volunteers, CTF, certificates | 📐 Designed (DATABASE.md §3), Phase 3 |
 | pgvector semantic search | 📐 Designed (DATABASE.md §10), Phase 3 |
-| Concurrency tests on real Postgres | ✍️ Written, not yet run (needs Docker or a Supabase project) |
+| Concurrency tests on real Postgres | ✅ 3 passed on temporary PostgreSQL 18.6 with the Supabase shim (2026-11-02); full Supabase verification still required |
 
 ---
 

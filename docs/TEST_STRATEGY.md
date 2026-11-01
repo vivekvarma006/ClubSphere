@@ -28,11 +28,14 @@ The world is built once per test file and **cloned** (PGlite `clone()`, about 25
 | Requirement | Test(s) |
 |---|---|
 | Email verification required before requesting | `membership-flow` "rejects users whose email is not verified"; `auth-routes` confirm route |
-| Password recovery | `auth-routes` "sends password recovery to the update-password page"; E2E fixme for the full flow |
+| Password recovery | `auth-routes` recovery redirect; `password-update` action authentication, validation, safe errors; HTTP smoke for signed-out recovery page. Full email/provider browser flow remains E2E fixme |
 | Google / OAuth callback | `auth-routes` callback cases (success, provider error, missing code, replayed code, open redirect) |
 | Pending / active / rejected / suspended states | `membership-flow`, `suspension-and-roles`, `constraints-and-audit` (state CHECKs) |
 | Approval and rejection permissions | `membership-flow` "reviewing requests" |
 | Unauthorized role escalation | `suspension-and-roles` "role assignment and escalation", "editing role permissions directly" |
+| Role deletion cascades | `suspension-and-roles` "deleting custom roles": permission subset, role.assign requirement, authorized deletion |
+| Redirect normalization | `safe-redirect` dot-segment cases; `auth-routes` normalized protocol-relative redirect |
+| Health deadlines | `health-route` successful, failed, and stalled queries; timer cleanup |
 | Duplicate membership requests | `membership-flow` idempotency; `constraints-and-audit` partial unique index; `concurrency` |
 | Repeated and concurrent approvals | `membership-flow` second approval → CS409; `services` CONFLICT mapping; `concurrency` (real PG) |
 | Cross-organization access | `rls-isolation`, `membership-flow` (officerB, crossUser), `services` (replayed ids), `suspension-and-roles` |
@@ -65,4 +68,4 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npx vi
 
 ## Last verified run
 
-On 2026-10-24 (local, Windows, Node 22.21): **190 passed, 3 skipped** (the concurrency suite) across 15 files. ESLint and `tsc` clean, `next build` successful, Playwright smoke 6/6. The concurrency suite and browser auth flows have **not** been run yet.
+On 2026-11-02 (local, Linux, Node 22): **210 tests passed** across separate runs: 61 unit, 146 database/integration (one worker to limit memory use), and 3 concurrency tests on temporary PostgreSQL 18.6 with the Supabase shim. ESLint, type checking, and the production build passed; HTTP Playwright smoke passed 8/8. No real Supabase credentials were used. Full browser auth/provider flows remain unverified.

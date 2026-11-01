@@ -44,7 +44,7 @@ The browser can also talk to the Supabase Data API directly with the publishable
 | T13 | Public sign-up grants officer/admin | E | Sign-up trigger creates only a profile; memberships only via approval; platform admins only via service role/SQL | `membership-flow.test.ts` "creates a profile but no membership" |
 | T14 | Email-domain rule bypassed by editing profile email | S | Domain checked against `auth.users.email` (verified), not `profiles.email`; profile email column not writable | `membership-flow.test.ts` "checks the Auth email" |
 | T15 | Suspended member keeps acting | E | Permissions require `status = 'active'`; checked per operation, not cached | `suspension-and-roles.test.ts` |
-| T16 | Race: two reviewers approve the same request; two owners suspend each other | T/E | Org-row lock + target-row `FOR UPDATE`; status re-checked after lock; unique constraints as backstop | `concurrency.test.ts` (real Postgres; **not yet run**); sequential repeat tests (PGlite) |
+| T16 | Race: two reviewers approve the same request; two owners suspend each other | T/E | Org-row lock + target-row `FOR UPDATE`; status re-checked after lock; unique constraints as backstop | `concurrency.test.ts` (3 passed on local PostgreSQL 18.6, 2026-11-02, with Supabase shim); sequential repeat tests (PGlite) |
 | T17 | Duplicate requests from retries | T | Partial unique index + idempotent procedure | `membership-flow.test.ts`, `concurrency.test.ts` |
 | T18 | Forged or erased audit trail | R | Actor from `auth.uid()` inside a SECURITY DEFINER trigger; no write privileges; append-only triggers (even for owner) | `constraints-and-audit.test.ts` |
 | T19 | Secrets or personal data in audit logs / app logs | I | Audit stores ids and column names only; logger redacts credential keys; Drizzle error messages (which contain SQL params) never logged or shown | `constraints-and-audit.test.ts`, `errors-and-logging.test.ts` |
@@ -60,7 +60,7 @@ The browser can also talk to the Supabase Data API directly with the publishable
 
 ## Residual risks and known limitations
 
-1. **Concurrency tests have not been run** in this environment (no Postgres server available). Run `test/concurrency` against `supabase start` before relying on T16.
+1. **Concurrency tests pass on local PostgreSQL 18.6** using the Supabase shim (2026-11-02). Verification against a full Supabase stack is still required before production.
 2. **No Content-Security-Policy yet.** Planned with the Phase 2 UI, once third-party origins are known.
 3. **No application rate limiting** on membership requests or reviews beyond Supabase Auth's own limits.
 4. **Least-privilege DB role** (`clubsphere_app`) is documented but must be created and verified in each Supabase project. Until then, the app connects as `postgres` and relies on `SET LOCAL ROLE authenticated` in every transaction.

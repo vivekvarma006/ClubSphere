@@ -16,6 +16,8 @@ describe("safeNextPath", () => {
     "",
     "https://evil.example/phish",
     "//evil.example",
+    "/a/..//evil.example",
+    "/a/%2e%2e//evil.example",
     "/\\evil.example",
     "\\\\evil.example",
     "javascript:alert(1)",

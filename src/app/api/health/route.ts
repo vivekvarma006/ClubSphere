@@ -14,15 +14,20 @@ export async function GET() {
   await connection(); // always evaluate at request time, never prerender
 
   const started = performance.now();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
       getDb().execute(sql`select 1`),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), DB_TIMEOUT_MS)),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("timeout")), DB_TIMEOUT_MS);
+      }),
     ]);
     const dbLatencyMs = Math.round(performance.now() - started);
     return Response.json({ status: "ok", db: "ok", dbLatencyMs }, { headers: NO_STORE });
   } catch (error) {
     log.error("health.db_unreachable", { errorName: error instanceof Error ? error.name : typeof error });
     return Response.json({ status: "degraded", db: "unreachable" }, { status: 503, headers: NO_STORE });
+  } finally {
+    clearTimeout(timeout);
   }
 }

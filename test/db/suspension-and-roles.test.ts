@@ -223,6 +223,53 @@ describe("editing role permissions directly (RLS on role_permissions)", () => {
   });
 });
 
+describe("deleting custom roles", () => {
+  it("cannot bypass the permission-subset rule through cascading deletes", async () => {
+    const createRole = (key: string) => asUser(db, w.ownerA, (tx) => scalar<string>(tx,
+      "insert into public.organization_roles (organization_id, role_key, name) values ($1, $2, $2) returning id as v",
+      [w.orgA.id, key],
+    ));
+    const manager = await createRole("role_admin");
+    const privileged = await createRole("auditor");
+    await call(w.ownerA,
+      "insert into public.role_permissions (organization_id, role_id, permission_key) values ($1, $2, 'role.manage'), ($1, $2, 'role.assign'), ($1, $3, 'audit.read')",
+      [w.orgA.id, manager, privileged],
+    );
+    await call(w.ownerA, "select private.assign_role($1, $2)", [await membershipId(db, w.orgA.id, w.memberA), manager]);
+    await call(w.ownerA, "select private.assign_role($1, $2)", [await membershipId(db, w.orgA.id, w.officerA), privileged]);
+
+    const res = await call(w.memberA, "delete from public.organization_roles where id = $1", [privileged]);
+    expect(res.affectedRows).toBe(0);
+    expect(await permissionsOf(w.officerA, w.orgA.id)).toContain("audit.read");
+
+    // The full permission holder can still delete a custom role.
+    expect((await call(w.ownerA, "delete from public.organization_roles where id = $1", [privileged])).affectedRows).toBe(1);
+    expect(await permissionsOf(w.officerA, w.orgA.id)).not.toContain("audit.read");
+  });
+
+  it("requires role.assign as well as role.manage because deletion removes assignments", async () => {
+    const createRole = (key: string) => asUser(db, w.ownerA, (tx) => scalar<string>(tx,
+      "insert into public.organization_roles (organization_id, role_key, name) values ($1, $2, $2) returning id as v",
+      [w.orgA.id, key],
+    ));
+    const manager = await createRole("role_admin");
+    const target = await createRole("empty_role");
+    await call(w.ownerA,
+      "insert into public.role_permissions (organization_id, role_id, permission_key) values ($1, $2, 'role.manage')",
+      [w.orgA.id, manager],
+    );
+    await call(w.ownerA, "select private.assign_role($1, $2)", [await membershipId(db, w.orgA.id, w.memberA), manager]);
+    await call(w.ownerA, "select private.assign_role($1, $2)", [await membershipId(db, w.orgA.id, w.officerA), target]);
+
+    expect((await call(w.memberA, "delete from public.organization_roles where id = $1", [target])).affectedRows).toBe(0);
+    await call(w.ownerA,
+      "insert into public.role_permissions (organization_id, role_id, permission_key) values ($1, $2, 'role.assign')",
+      [w.orgA.id, manager],
+    );
+    expect((await call(w.memberA, "delete from public.organization_roles where id = $1", [target])).affectedRows).toBe(1);
+  });
+});
+
 describe("direct writes to membership tables are impossible through the API", () => {
   it.each([
     ["insert a membership", "insert into public.organization_memberships (organization_id, user_id) values ($1, $2)"],

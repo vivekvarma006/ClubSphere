@@ -1,9 +1,7 @@
 import path from "node:path";
 import type { NextConfig } from "next";
 
-// Baseline browser protections for every response. A Content-Security-Policy
-// is planned for Phase 2 once the auth screens (and their third-party
-// origins) exist; see docs/THREAT_MODEL.md.
+// Baseline protections; the per-request nonce CSP is set in src/proxy.ts.
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },

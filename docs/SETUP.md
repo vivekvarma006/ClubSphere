@@ -39,7 +39,7 @@ Demo mode stores its database in `.demo-data/` (git-ignored) and seeds two sampl
 
 In the Supabase dashboard → Authentication:
 
-1. **URL configuration**: Site URL `http://localhost:3000`. Redirect URLs: `http://localhost:3000/auth/callback`.
+1. **URL configuration**: Site URL `http://localhost:3000`. Redirect URLs: `http://localhost:3000/auth/callback` (including callback query parameters). Set `APP_URL` to this deployment’s public origin; use HTTPS in staging and production.
 2. **Email provider**: enable "Confirm email".
 3. **Email templates**: point the confirmation and recovery links at the confirm route:
    - Confirm signup: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`
@@ -59,7 +59,7 @@ npm run dev
 
 ## 5. Create the first platform admin and club
 
-The sign-in screens arrive in Phase 2. Until then, create users in the dashboard (Authentication → Users → *Add user*, tick "auto confirm"). Then edit and run [`supabase/bootstrap/first_platform_admin_and_organization.sql`](../supabase/bootstrap/first_platform_admin_and_organization.sql) in the SQL editor.
+Create an account at `/login?mode=signup` and confirm its email, or use Google sign-in. Then edit and run [`supabase/bootstrap/first_platform_admin_and_organization.sql`](../supabase/bootstrap/first_platform_admin_and_organization.sql) in the SQL editor.
 
 That script is the **only** place the first club's identity is entered. The code contains no club names.
 

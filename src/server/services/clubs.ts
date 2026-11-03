@@ -13,6 +13,7 @@ import {
 import type { Database } from "@/server/db/types";
 import { withUserContext } from "@/server/db/user-context";
 import { AppError, handleServiceError } from "@/server/errors";
+import { OrganizationBrandingSchema, parseOrganizationSettings } from "@/server/validation/organization-config";
 import { OrganizationSlug } from "@/server/validation/inputs";
 
 async function run<T>(operation: string, fn: () => Promise<T>): Promise<T> {
@@ -113,7 +114,7 @@ export async function getClubContext(
   db: Database,
   actor: VerifiedActor,
   organizationSlug: string,
-): Promise<OrgAccess & { isMember: boolean; primaryColor: string | null; me: { displayName: string } }> {
+): Promise<OrgAccess & { features: ReturnType<typeof parseOrganizationSettings>["features"]; isMember: boolean; logoUrl: string | null; shortName: string | null; primaryColor: string | null; me: { displayName: string } }> {
   return run("clubs.context", async () => {
     const slug = OrganizationSlug.parse(organizationSlug);
     return withUserContext(db, actor, async (tx) => {
@@ -122,11 +123,15 @@ export async function getClubContext(
         .select({ status: organizationMemberships.status })
         .from(organizationMemberships)
         .where(and(eq(organizationMemberships.organizationId, access.organization.id), eq(organizationMemberships.userId, actor.userId)));
-      const [org] = await tx.select({ branding: organizations.branding }).from(organizations).where(eq(organizations.id, access.organization.id));
+      const [org] = await tx.select({ branding: organizations.branding, settings: organizations.settings }).from(organizations).where(eq(organizations.id, access.organization.id));
       const [me] = await tx.select({ displayName: profiles.displayName }).from(profiles).where(eq(profiles.id, actor.userId));
       const color = org?.branding.primaryColor;
+      const branding = OrganizationBrandingSchema.safeParse(org?.branding);
       return {
         ...access,
+        logoUrl: branding.success ? branding.data.logoUrl ?? null : null,
+        shortName: branding.success ? branding.data.shortName ?? null : null,
+        features: parseOrganizationSettings(org?.settings).features,
         isMember: membership?.status === "active",
         primaryColor: typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color) ? color : null,
         me: { displayName: me?.displayName ?? "Member" },

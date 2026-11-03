@@ -2,7 +2,7 @@
 
 How to use this guide: read sections 1–4 the night before the review. Then work through the question bank (section 7) **out loud with your teammate**, taking turns asking. Open every file linked from an answer at least once. Examiners usually follow up with "show me where", so you should be able to jump to the code.
 
-> **Be precise about what exists.** Phase 1 (identity, organizations, roles, memberships, audit, reports) is **built and tested**. Events, QR check-in, food distribution, inventory, CTF, certificates and semantic search are **designed** (ER diagram, rules, mechanisms) and are Phase 3 work. Say "designed and scheduled", never "done". Examiners respect a clear plan far more than an overclaim they can disprove in one click.
+> **Be precise about what exists.** The foundation and roadmap modules are implemented and locally tested. Demo browser flows use an isolated local database. Supabase email/OAuth delivery, production configuration and real multi-connection module races still require environment-specific verification. The current schema and evidence are in DATABASE.md and TEST_STRATEGY.md.
 
 ---
 
@@ -19,12 +19,12 @@ How to use this guide: read sections 1–4 the night before the review. Then wor
 1. Problem → fragmented tools → concrete failures (duplicates, food wastage, no contribution tracking).
 2. Users: applicants, members, officers, owners; plus platform admins who manage ClubSphere itself.
 3. Flow: sign in (Google or email) → choose club → answer that club's questions → pending request → officer approves → member.
-4. Data model: 12 tables now, about 25 designed; M:N relationships resolved with associative entities (memberships, membership_roles, role_permissions).
+4. Data model: 31 public tables; M:N relationships resolved with associative entities (memberships, membership_roles, role_permissions).
 5. Integrity: constraints, composite foreign keys, partial unique index, CHECKs tying status to timestamps.
 6. Security: RLS on every table, security-definer procedures, subset rule against escalation, audit triggers.
 7. Concurrency: row locks so two officers can't double-approve and two owners can't remove each other.
 8. Reports: views with security_invoker; average review time per club, etc.
-9. Next: events, QR attendance and food distribution with exactly-once guarantees, then pgvector search.
+9. Operations: show QR attendance, exactly-once food claims, tasks, CTF scoring, certificates and pgvector search.
 
 ---
 
@@ -32,7 +32,7 @@ How to use this guide: read sections 1–4 the night before the review. Then wor
 
 | Reviewer checks | Our evidence | Show this |
 |---|---|---|
-| **Min 5 tables in ER diagram** | 12 tables implemented, about 25 in the full design | [DATABASE.md §2 and §3](DATABASE.md#2-er-diagram-phase-1-implemented) (Mermaid; export a PNG from mermaid.live for slides) |
+| **Min 5 tables in ER diagram** | 31 public tables implemented | [DATABASE.md §2 and §3](DATABASE.md#2-er-diagram-phase-1-implemented) (Mermaid; export a PNG from mermaid.live for slides) |
 | **RDBMS + NoSQL** | PostgreSQL + **pgvector** (requirements doc **Option 2: SQL + Vector DB**), working in the app: Club → Knowledge base. Plus JSONB for semi-structured config | Search "stealing session cookies with javascript": the XSS write-up ranks first by meaning while full-text finds no matching words. [DATABASE.md §10](DATABASE.md#10-vector--nosql-component). ⚠️ Confirm with the instructor that Option 2 satisfies "NoSQL"; the MongoDB fallback design is in the same section. |
 | **Reports in demo** (like "average salary per department") | 4 report views + 11 demo queries: AVG per org, HAVING, correlated subquery, RANK(), running total, RLS demo | `npm run demo:reports`, [demo_reports.sql](../supabase/queries/demo_reports.sql) |
 | **Novelty** | See below | Talk through §3 |
@@ -41,7 +41,7 @@ How to use this guide: read sections 1–4 the night before the review. Then wor
 
 Prepare beforehand: `npm ci`, run `npm test` once (so it's fast), open VS Code with the migrations folder and the ER diagram.
 
-1. **ER diagram** (2 min). Walk Profiles → Memberships ← Organizations; then Roles → Role_Permissions ← Permissions; point at the composite-FK notes. Mention the planned modules diagram.
+1. **ER diagram** (2 min). Walk Profiles → Memberships ← Organizations; then Roles → Role_Permissions ← Permissions; point at the composite-FK notes. Show the implemented module diagram.
 2. **DDL** (1 min). Open [0600_memberships.sql](../supabase/migrations/20261024000600_memberships.sql): the partial unique index (line 46) and the CHECK that ties status to timestamps (line 33). Optionally paste [ddl_dml_demo.sql](../supabase/queries/ddl_dml_demo.sql) into the Supabase SQL editor: CREATE / ALTER / INSERT / UPDATE / DELETE / DROP inside a rolled-back transaction.
 3. **Reports** (2 min). Run `npm run demo:reports`. Read out query 1 (average review time per organization) and explain GROUP BY + AVG. Then queries 9 and 10: the **same view** returns only Alpha for Alpha's owner and only Beta for Beta's owner. That is RLS.
 4. **Procedure + transaction** (2 min). Open [`approve_membership_request`](../supabase/migrations/20261024000700_authorization_and_procedures.sql#L435): lock org → check permission → `FOR UPDATE` → status check → insert membership + role → update request, all in one transaction.
@@ -53,8 +53,8 @@ Prepare beforehand: `npm ci`, run `npm test` once (so it's fast), open VS Code w
 2. **Privilege can only flow downward.** The subset rule: you can only grant, assign or suspend what you hold yourself. It is enforced in SQL, so even a buggy UI can't let an officer become an owner.
 3. **Race-safe operations.** Org-row locking prevents write skew, and idempotent requests survive double-clicks and retries.
 4. **Tamper-proof audit trail.** Written by triggers with the actor taken from the verified session; append-only even for the table owner.
-5. **(Designed)** QR check-in and food distribution with **exactly-once** semantics: primary keys make a second scan harmless, and the inventory decrement plus claim plus stock movement happen in one transaction.
-6. **(Designed)** Semantic search with pgvector over CTF write-ups and event docs, inside the same RLS boundary, optionally combined with full-text search (hybrid ranking).
+5. **(Implemented)** QR check-in and food distribution with **exactly-once** semantics: primary keys make a second scan harmless, and the inventory decrement plus claim plus stock movement happen in one transaction.
+6. **(Implemented)** Semantic search with pgvector over CTF write-ups and event docs, inside the same RLS boundary, optionally combined with full-text search (hybrid ranking).
 
 ---
 
@@ -62,23 +62,23 @@ Prepare beforehand: `npm ci`, run `npm test` once (so it's fast), open VS Code w
 
 | Area | Status |
 |---|---|
-| Schema: 20 tables (12 foundation + role templates, events, registrations, QR credentials, attendance, documents, vector chunks), constraints, indexes incl. HNSW and GIN, RLS, procedures, 5 report views, audit triggers | ✅ Built, tested |
+| Schema: 31 public tables (foundation, role templates, events, QR, knowledge base and product modules), constraints, indexes incl. HNSW and GIN, RLS, procedures, 7 report/scoreboard views, audit triggers | ✅ Built, tested |
 | Server layer: verified identity, org access checks, membership services, reports service, error mapping, logging | ✅ Built, tested |
 | Auth plumbing: Supabase SSR clients, session refresh, OAuth callback, email-confirm/recovery route | ✅ Built, unit + smoke tested |
 | Web UI (Review-1 prototype): demo sign-in, dashboard, join flow, review queue, events, QR codes, scanner, knowledge-base search, reports | ✅ Built, verified in the browser ([PROTOTYPE_DEMO.md](PROTOTYPE_DEMO.md)) |
 | Events, registrations with capacity, private QR credentials, exactly-once QR attendance | ✅ Built, tested |
 | pgvector semantic search (hybrid with full-text, static embedding model) | ✅ Built, tested |
-| Supabase sign-in screens, member management UI | ⏳ Next ([ROADMAP.md](ROADMAP.md)) |
-| Food distribution, inventory, volunteers, CTF, certificates, feedback, contribution analytics | 📐 Designed (DATABASE.md §3), remaining |
+| Supabase sign-in screens, member management UI | Implemented; provider staging checks remain ([ROADMAP.md](ROADMAP.md)) |
+| Food distribution, inventory, volunteers, CTF, certificates, feedback, contribution analytics | Implemented; current ER diagram in DATABASE.md §3 |
 | Concurrency tests on real Postgres | ✅ 3 passed on temporary PostgreSQL 18.6 with the Supabase shim (2026-11-02); full Supabase verification still required |
 
 ---
 
 ## 4. Ten facts to have at your fingertips
 
-1. **Tables:** profiles, platform_admins, organizations, organization_email_domains, organization_profile_fields, permissions, organization_roles, role_permissions, membership_requests, organization_memberships, membership_roles, audit_logs.
+1. **Foundation tables** (12 of the current 31; see DATABASE.md §3 for modules): profiles, platform_admins, organizations, organization_email_domains, organization_profile_fields, permissions, organization_roles, role_permissions, membership_requests, organization_memberships, membership_roles, audit_logs.
 2. **M:N relationships:** profiles↔organizations (via memberships), memberships↔roles (via membership_roles), roles↔permissions (via role_permissions).
-3. **Default roles per new club:** owner (all 8 permissions), officer (member.read, membership.review, membership.suspend, analytics.read), member (none yet). Seeded by an AFTER INSERT trigger.
+3. **Default roles per new club:** owner (all 16 permissions), officer (daily operations), volunteer (check-in and meals), member (eligibility-based participation). Seeded by an AFTER INSERT trigger.
 4. **Isolation level:** PostgreSQL default, **READ COMMITTED**, made safe with `SELECT … FOR UPDATE` row locks and unique constraints.
 5. **Error codes:** custom SQLSTATE class `CS`: CS401, CS403, CS404, CS409, CS422.
 6. **Why "not found" for cross-club attempts:** so officers can't discover other clubs' request ids.
@@ -259,8 +259,8 @@ We always lock in the same order (club row, then target row), which avoids lock-
 **Q34. How do you prevent duplicate requests from a double-click?**
 The procedure first returns any existing pending request. If two inserts race, the partial unique index rejects one; the procedure catches `unique_violation` and returns the winner's id. So it is idempotent: same input, same result, no duplicate.
 
-**Q35. (Phase 3) How will you stop two people claiming the same food coupon, or food being given when stock is out?**
-`food_claims` primary key `(registration_id, meal_slot_id)` blocks a second claim. Stock: `UPDATE inventory_items SET quantity = quantity - 1 WHERE id = $1 AND quantity > 0`. If it updates 0 rows, we're out. Plus `CHECK (quantity >= 0)`. The claim, the stock update and a `stock_movements` row are in one transaction.
+**Q35. How do you stop duplicate meal claims and negative stock?**
+`claim_meal` locks the organization, verifies scanner permission and attendance, and inserts `food_claims` with primary key `(registration_id, meal_slot_id)`. Replays return already claimed. A stock movement of −1 fires the quantity trigger; `CHECK (quantity >= 0)` rejects an exhausted item. The claim, movement, quantity and audit rows commit or roll back together.
 
 ### F. Triggers, procedures, views
 
@@ -277,7 +277,7 @@ A trigger can't be forgotten. It fires for every write path, including manual SQ
 The function runs with its owner's privileges, so it can write tables the caller can't. That is how membership writes are restricted to our procedures. Risk: a malicious object earlier on the `search_path` could hijack unqualified names. Fix: `SET search_path = ''` and fully qualified names. A test checks every definer function has it.
 
 **Q40. What is a view? Updatable? Materialized?**
-A stored query. Simple single-table views are auto-updatable. A materialized view stores results and must be refreshed, which is good for heavy reports (planned for contribution scores). By default a view runs with its **owner's** rights and would bypass RLS, so ours use `security_invoker = true`.
+A stored query. Simple single-table views are auto-updatable. A materialized view stores results and must be refreshed, which could help future heavy reports; current contribution scores use a live view. By default a view runs with its **owner's** rights and would bypass RLS, so ours use `security_invoker = true`.
 
 ### G. Indexes and performance
 
@@ -456,7 +456,7 @@ The requirements say **both** members must contribute to **both** database and a
 | Identity + organizations + roles migrations (0300–0500) | Memberships + procedures migrations (0600–0700) |
 | RLS policies + `rls-isolation` tests | Reports views + demo queries + `reports` tests |
 | Auth routes, proxy, session (`src/app/auth`, `src/server/auth`) | Services + error mapping (`src/server/services`, `errors.ts`) |
-| Phase 3: events, registrations, QR attendance | Phase 3: food distribution, inventory, pgvector search |
+| Events, registrations, QR attendance | Food distribution, inventory, pgvector search |
 
 Commit your own parts from your own Git account, in small commits with meaningful messages ("add partial unique index for pending requests"), not one giant commit. Each of you must be able to explain the **other's** part too; examiners often ask the quieter member about the code the louder one presented.
 
@@ -464,8 +464,8 @@ Commit your own parts from your own Git account, in small commits with meaningfu
 
 ## 10. Known limitations: say these before you're asked
 
-- UI screens for sign-in/onboarding/review are Phase 2; Phase 1 is the secure foundation.
-- Concurrency tests are written but haven't run against a real Postgres yet.
-- No rate limiting or Content-Security-Policy yet.
+- Live Supabase email/OAuth and account-linking flows require staging configuration.
+- Foundation concurrency was verified on local Postgres; the current meal race test requires a new run with pgvector and `TEST_DATABASE_URL`.
+- Membership/scanner/flag quotas are identity-based; Supabase and the deployment gateway handle anonymous floods. The nonce CSP permits inline styles for branding.
 - Performance targets are defined but not measured.
 - Whether "NoSQL" in the checklist accepts pgvector is being confirmed with the instructor.

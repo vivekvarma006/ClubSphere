@@ -3,6 +3,7 @@
 import jsQR from "jsqr";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { checkInAction, type CheckInState } from "@/app/actions";
+import { claimMealAction } from "@/app/module-actions";
 import { buttonClass, cx, inputClass } from "@/components/ui";
 
 /**
@@ -11,12 +12,12 @@ import { buttonClass, cx, inputClass } from "@/components/ui";
  * records attendance exactly once (private.check_in). A text box covers
  * laptops without a camera.
  */
-export function Scanner({ slug, eventId }: { slug: string; eventId: string }) {
+export function Scanner({ slug, eventId, slotId }: { slug: string; eventId: string; slotId?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastCode = useRef<{ code: string; at: number } | null>(null);
-  const [camera, setCamera] = useState<"off" | "starting" | "on" | "unavailable">("off");
-  const [result, setResult] = useState<CheckInState | null>(null);
+  const [camera, setCamera] = useState<"off" | "on" | "unavailable">("off");
+  const [result, setResult] = useState<CheckInState | Awaited<ReturnType<typeof claimMealAction>> | null>(null);
   const [history, setHistory] = useState<Array<{ name: string; status: string; at: number }>>([]);
   const [manual, setManual] = useState("");
   const [pending, startTransition] = useTransition();
@@ -24,16 +25,16 @@ export function Scanner({ slug, eventId }: { slug: string; eventId: string }) {
   const submit = useCallback(
     (code: string) => {
       startTransition(async () => {
-        const outcome = await checkInAction(slug, eventId, code);
+        const outcome = await (slotId ? claimMealAction(slug, eventId, slotId, code) : checkInAction(slug, eventId, code));
         setResult(outcome);
         if (outcome.ok) setHistory((h) => [{ name: outcome.name, status: outcome.status, at: Date.now() }, ...h].slice(0, 8));
       });
     },
-    [slug, eventId],
+    [slug, eventId, slotId],
   );
 
   useEffect(() => {
-    if (camera !== "starting") return;
+    if (camera !== "on") return;
     let stream: MediaStream | null = null;
     let frame = 0;
     let cancelled = false;
@@ -52,7 +53,7 @@ export function Scanner({ slug, eventId }: { slug: string; eventId: string }) {
           const found = jsQR(image.data, image.width, image.height, { inversionAttempts: "dontInvert" });
           const now = Date.now();
           // Ignore the same code for 3 s so one QR held in front of the camera is sent once.
-          if (found?.data && !(lastCode.current?.code === found.data && now - lastCode.current.at < 3000)) {
+          if (found?.data && !(lastCode.current && lastCode.current.code === found.data && now - lastCode.current.at < 3000)) {
             lastCode.current = { code: found.data, at: now };
             submit(found.data);
           }
@@ -71,7 +72,6 @@ export function Scanner({ slug, eventId }: { slug: string; eventId: string }) {
           video.srcObject = s;
           void video.play();
         }
-        setCamera("on");
         frame = requestAnimationFrame(tick);
       })
       .catch(() => setCamera("unavailable"));
@@ -95,7 +95,7 @@ export function Scanner({ slug, eventId }: { slug: string; eventId: string }) {
                 <button
                   type="button"
                   // Camera access needs a secure context (https or localhost).
-                  onClick={() => setCamera(navigator.mediaDevices ? "starting" : "unavailable")}
+                  onClick={() => setCamera(navigator.mediaDevices ? "on" : "unavailable")}
                   className={buttonClass("primary")}
                 >
                   Start camera
@@ -120,8 +120,8 @@ export function Scanner({ slug, eventId }: { slug: string; eventId: string }) {
             aria-label="QR code text"
             className={inputClass}
           />
-          <button type="submit" disabled={pending} className={buttonClass("secondary")}>
-            Check in
+          <button type="submit" disabled={pending} className={cx(buttonClass("secondary"), "shrink-0 whitespace-nowrap")}>
+            {slotId ? "Claim meal" : "Check in"}
           </button>
         </form>
       </div>
@@ -133,7 +133,7 @@ export function Scanner({ slug, eventId }: { slug: string; eventId: string }) {
             "rounded-xl border p-6 text-center",
             !result
               ? "border-zinc-200 text-zinc-500 dark:border-zinc-800"
-              : result.ok && result.status === "checked_in"
+              : result.ok && (result.status === "checked_in" || result.status === "claimed")
                 ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100"
                 : result.ok
                   ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
@@ -147,7 +147,7 @@ export function Scanner({ slug, eventId }: { slug: string; eventId: string }) {
           ) : result.ok ? (
             <>
               <p className="text-2xl font-semibold">{result.name}</p>
-              <p>{result.status === "checked_in" ? "Checked in" : "Already checked in earlier: not counted twice"}</p>
+              <p>{(result.status === "checked_in" || result.status === "claimed") ? (slotId ? "Meal claimed" : "Checked in") : (slotId ? "Meal already claimed: no stock deducted" : "Already checked in earlier: not counted twice")}</p>
             </>
           ) : (
             <p className="font-medium">{result.message}</p>
@@ -158,7 +158,7 @@ export function Scanner({ slug, eventId }: { slug: string; eventId: string }) {
             {history.map((h) => (
               <li key={h.at} className="flex justify-between text-zinc-600 dark:text-zinc-400">
                 <span>{h.name}</span>
-                <span>{h.status === "checked_in" ? "checked in" : "duplicate scan"}</span>
+                <span>{h.status === "checked_in" ? "checked in" : h.status === "claimed" ? "meal claimed" : "duplicate scan"}</span>
               </li>
             ))}
           </ul>

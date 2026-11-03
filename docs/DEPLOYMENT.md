@@ -20,6 +20,7 @@ Each environment has its **own** Supabase project, keys, OAuth client and `DATAB
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | no | Inlined at **build** time; set it before building |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | no | Inlined at build time |
+| `APP_URL` | no | Public HTTPS origin for signup, recovery and Google callbacks |
 | `DATABASE_URL` | **yes** | Transaction pooler, least-privilege login role (below) |
 | `DATABASE_POOL_MAX` | no | 3–5 per serverless instance |
 | `APP_ENV`, `LOG_LEVEL` | no | |
@@ -32,10 +33,10 @@ Run once per project in the SQL editor, with a generated password:
 
 ```sql
 create role clubsphere_app login password '<generated>' noinherit;
-grant authenticated to clubsphere_app;   -- may only act as `authenticated`
+grant authenticated, anon to clubsphere_app; -- verified operations / public certificate lookup
 ```
 
-`noinherit` means the login role has **no privileges of its own**. Queries work only after `withUserContext` runs `SET LOCAL ROLE authenticated`, so a code path that forgot to switch role fails instead of running with elevated rights. Connect through the pooler as `clubsphere_app.<project-ref>`.
+`noinherit` means the login role has **no privileges of its own**. Queries work only after `withUserContext` runs `SET LOCAL ROLE authenticated` (or the certificate lookup sets `anon`), so a code path that forgot to switch role fails instead of running with elevated rights. Connect through the pooler as `clubsphere_app.<project-ref>`.
 
 > Verify in each project before relying on it: create the role, set `DATABASE_URL`, and check that `/api/health` and a membership operation work. (`select 1` runs without table privileges; the membership call is the real test.) Until verified, the app can connect as `postgres`, and it still switches to `authenticated` in every transaction.
 
@@ -64,7 +65,7 @@ Each migration runs in a single transaction, so a migration that fails part-way 
 
 ## Production checklist
 
-- [ ] Separate Supabase project; migrations applied; `select count(*) from public.permissions` returns 8
+- [ ] Separate Supabase project; migrations applied; `select count(*) from public.permissions` returns 16
 - [ ] Auth: Site URL and redirect URLs set to the production domain; "Confirm email" on; email templates point to `/auth/confirm`; custom SMTP configured (Supabase's default sender is rate-limited)
 - [ ] Google OAuth production client with the production redirect URI
 - [ ] Asymmetric JWT signing keys enabled
@@ -73,3 +74,12 @@ Each migration runs in a single transaction, so a migration that fails part-way 
 - [ ] Backups / PITR enabled
 - [ ] Uptime monitor on `/api/health`
 - [ ] `test/concurrency` run against staging
+
+
+## Optional modules and release verification
+
+Apply migrations through `20261103002000_request_limits.sql` before deploying this version. Enable inventory, volunteers, CTF, certificates, feedback and analytics per club under Settings. Existing clubs keep them disabled; fresh demo seeds enable them. Public verification needs `anon` role membership on the application login, but grants it no table access.
+
+`npm run build && npm run test:e2e:demo` runs a fresh isolated offline browser database; it never resets an existing demo database. Staging must separately verify email delivery, confirmation, recovery, Google OAuth, the least-privilege login and real multi-connection concurrency with pgvector. The `v1.0` source tag belongs on the reviewed implementation commit. It is a local source checkpoint; production deployment still requires the staging and operational checks above.
+
+The nonce CSP makes pages dynamic. Inline styles remain permitted for per-club CSS branding; production scripts require a nonce and do not permit eval. OAuth form redirects allow the exact origin in `NEXT_PUBLIC_SUPABASE_URL`, including custom domains and a local Supabase stack.

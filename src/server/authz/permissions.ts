@@ -22,6 +22,11 @@ export const PERMISSIONS = [
   "event.manage",
   "event.checkin",
   "document.manage",
+  "food.distribute",
+  "inventory.manage",
+  "task.manage",
+  "ctf.manage",
+  "certificate.issue",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

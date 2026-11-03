@@ -4,7 +4,7 @@ The SQL in [`supabase/migrations/`](../supabase/migrations) is the source of tru
 
 - [1. Database choice and justification](#1-database-choice-and-justification)
 - [2. ER diagram: Phase 1 (implemented)](#2-er-diagram-phase-1-implemented)
-- [3. ER diagram: full system (events/QR and knowledge base built; remaining modules designed)](#3-er-diagram-full-system)
+- [3. ER diagram: full system (implemented)](#3-er-diagram-full-system)
 - [4. Relational schema and data dictionary](#4-relational-schema-and-data-dictionary)
 - [5. Constraints that enforce business rules](#5-constraints-that-enforce-business-rules)
 - [6. Normalization](#6-normalization)
@@ -156,120 +156,67 @@ erDiagram
 
 ## 3. ER diagram: full system
 
-Modules from the synopsis. **Built in the Review-1 prototype:** events, event registrations, QR credentials (`registration_credentials`: a 64-hex random token readable only by its owner), attendance, documents and document chunks (`vector(256)`). **Still designed only:** meal slots, food claims, inventory, stock movements, volunteer tasks, CTF, certificates. Every table carries `organization_id` and uses composite foreign keys so rows cannot reference another club's data, the same convention as Phase 1.
+The current schema contains **31 public tables**. The twelve foundation tables are shown above; role templates, events, credentials, attendance, knowledge-base storage and the remaining product modules are implemented in migrations `20261103001000`–`20261103002000`. `private.request_limits` is internal counter storage and has no API table grants.
 
 ```mermaid
 erDiagram
-    ORGANIZATIONS ||--o{ EVENTS : "runs"
-    EVENTS ||--o{ EVENT_REGISTRATIONS : "has"
-    PROFILES ||--o{ EVENT_REGISTRATIONS : "registers"
-    EVENT_REGISTRATIONS ||--|| QR_CREDENTIALS : "gets"
-    EVENT_REGISTRATIONS ||--o| ATTENDANCE : "checked in"
-    EVENTS ||--o{ MEAL_SLOTS : "serves"
-    EVENT_REGISTRATIONS ||--o{ FOOD_CLAIMS : "claims"
-    MEAL_SLOTS ||--o{ FOOD_CLAIMS : "for"
-    ORGANIZATIONS ||--o{ INVENTORY_ITEMS : "stocks"
-    INVENTORY_ITEMS ||--o{ STOCK_MOVEMENTS : "moves"
-    FOOD_CLAIMS |o--|| STOCK_MOVEMENTS : "records"
-    EVENTS ||--o{ VOLUNTEER_TASKS : "needs"
-    VOLUNTEER_TASKS ||--o{ TASK_ASSIGNMENTS : "assigned"
-    ORGANIZATION_MEMBERSHIPS ||--o{ TASK_ASSIGNMENTS : "does"
-    ORGANIZATIONS ||--o{ CTF_CHALLENGES : "hosts"
-    CTF_CHALLENGES ||--o{ CTF_SOLVES : "solved in"
-    PROFILES ||--o{ CTF_SOLVES : "solves"
-    EVENTS ||--o{ CERTIFICATES : "awards"
-    PROFILES ||--o{ CERTIFICATES : "earns"
-    ORGANIZATIONS ||--o{ DOCUMENTS : "owns"
-    DOCUMENTS ||--o{ DOCUMENT_CHUNKS : "split into"
-
-    EVENTS {
-        uuid id PK
-        uuid organization_id FK
-        text title
-        timestamptz starts_at
-        int capacity
-    }
-    EVENT_REGISTRATIONS {
-        uuid id PK
-        uuid event_id FK "UK with user"
-        uuid user_id FK
-        text status
-    }
-    QR_CREDENTIALS {
-        uuid registration_id PK
-        bytea token_hash UK "SHA-256 of random token"
-        timestamptz revoked_at
-    }
-    ATTENDANCE {
-        uuid registration_id PK "one check-in"
-        uuid scanned_by FK
-        timestamptz checked_in_at
-    }
-    MEAL_SLOTS {
-        uuid id PK
-        uuid event_id FK
-        uuid inventory_item_id FK
-    }
-    FOOD_CLAIMS {
-        uuid registration_id PK
-        uuid meal_slot_id PK "one claim per slot"
-        uuid scanned_by FK
-    }
-    INVENTORY_ITEMS {
-        uuid id PK
-        uuid organization_id FK
-        int quantity "CHECK >= 0"
-    }
-    STOCK_MOVEMENTS {
-        bigint id PK
-        uuid item_id FK
-        int delta
-        text reason
-    }
-    VOLUNTEER_TASKS {
-        uuid id PK
-        uuid event_id FK
-        text status
-    }
-    TASK_ASSIGNMENTS {
-        uuid task_id PK
-        uuid membership_id PK
-    }
-    CTF_CHALLENGES {
-        uuid id PK
-        text title
-        int points
-    }
-    CTF_SOLVES {
-        uuid challenge_id PK
-        uuid user_id PK
-        timestamptz solved_at
-    }
-    CERTIFICATES {
-        uuid id PK
-        text verification_code UK
-    }
-    DOCUMENTS {
-        uuid id PK
-        text source_type "writeup|event_doc|feedback"
-    }
-    DOCUMENT_CHUNKS {
-        bigint id PK
-        uuid document_id FK
-        text content
-        vector embedding "vector(256), HNSW index"
-    }
+    ROLE_TEMPLATES ||--o{ ROLE_TEMPLATE_PERMISSIONS : defaults
+    PERMISSIONS ||--o{ ROLE_TEMPLATE_PERMISSIONS : grants
+    ORGANIZATIONS ||--o{ EVENTS : runs
+    EVENTS ||--o{ EVENT_REGISTRATIONS : accepts
+    PROFILES ||--o{ EVENT_REGISTRATIONS : registers
+    EVENT_REGISTRATIONS ||--|| REGISTRATION_CREDENTIALS : owns
+    EVENT_REGISTRATIONS ||--o| EVENT_ATTENDANCE : checks_in
+    ORGANIZATIONS ||--o{ INVENTORY_ITEMS : stocks
+    INVENTORY_ITEMS ||--o{ STOCK_MOVEMENTS : adjusts
+    INVENTORY_ITEMS ||--o{ MEAL_SLOTS : supplies
+    EVENTS ||--o{ MEAL_SLOTS : serves
+    MEAL_SLOTS ||--o{ FOOD_CLAIMS : claimed
+    EVENT_REGISTRATIONS ||--o{ FOOD_CLAIMS : consumes
+    EVENTS |o--o{ VOLUNTEER_TASKS : supports
+    VOLUNTEER_TASKS ||--o{ TASK_ASSIGNMENTS : assigns
+    ORGANIZATION_MEMBERSHIPS ||--o{ TASK_ASSIGNMENTS : completes
+    EVENTS ||--o{ CTF_CHALLENGES : contains
+    CTF_CHALLENGES ||--o{ CTF_ATTEMPTS : receives
+    PROFILES ||--o{ CTF_ATTEMPTS : attempts
+    CTF_CHALLENGES ||--o{ CTF_SOLVES : awards
+    PROFILES ||--o{ CTF_SOLVES : solves
+    EVENT_REGISTRATIONS ||--o| CERTIFICATES : certifies
+    EVENTS ||--o{ EVENT_FEEDBACK : receives
+    PROFILES ||--o{ EVENT_FEEDBACK : submits
+    DOCUMENTS ||--o{ EVENT_FEEDBACK : indexes
+    DOCUMENTS |o--o{ CTF_SOLVES : explains
+    ORGANIZATIONS ||--o{ DOCUMENTS : owns
+    DOCUMENTS ||--o{ DOCUMENT_CHUNKS : embeds
 ```
 
-The key Phase 3 guarantees, and the database mechanism behind each:
-
-| Rule | Mechanism |
+| Table | Keys and invariant |
 |---|---|
-| A QR code can't be scanned in twice | `attendance` primary key = `registration_id`, so a second scan raises a unique violation, which the app reports as "already checked in" (idempotent). |
-| One food claim per person per meal | `food_claims` primary key `(registration_id, meal_slot_id)`. |
-| Food can't be issued when stock is out | `update inventory_items set quantity = quantity - 1 where id = $1 and quantity > 0` plus `CHECK (quantity >= 0)`, in the **same transaction** as the claim insert and a `stock_movements` row. If any step fails, all roll back. |
-| QR codes are not guessable or forgeable | 128-bit random token shown as the QR; only its SHA-256 hash is stored, so a database leak does not reveal valid codes. |
-| Contribution metrics | Views or materialized views aggregating attendance, task assignments and CTF solves with window functions. |
+| `role_templates`, `role_template_permissions` | Default roles as data; `register_permission` backfills system roles in existing clubs |
+| `events` | `(organization_id,id)` unique; end after start; positive capacity; draft/published/completed/cancelled |
+| `event_registrations` | Unique `(event_id,user_id)`, `(event_id,id)`, `(organization_id,id)`; event row lock serializes capacity checks |
+| `registration_credentials` | PK `registration_id`; unique 64-hex random token, readable only by registrant |
+| `event_attendance` | PK `registration_id`; composite event/registration FK; exactly-once attendance |
+| `inventory_items` | `(organization_id,id)` unique; quantity `CHECK >= 0`; only movement trigger changes stock |
+| `stock_movements` | UUID PK; signed nonzero delta; immutable to API roles; AFTER INSERT updates the item under row lock |
+| `meal_slots` | UUID PK; composite FKs to event and item in the same club; unique `(event_id,name)` |
+| `food_claims` | PK `(registration_id,meal_slot_id)`; composite FKs enforce both the same event and club; claim and movement commit together |
+| `volunteer_tasks` | UUID PK, organization scope, optional event, title/description, due time |
+| `task_assignments` | PK `(task_id,membership_id)`; same-club composite FKs; only assignee completes; replay preserves `completed_at` |
+| `ctf_challenges` | UUID PK, same-club event; points 1–10000; `flag_hash` is native PostgreSQL SHA-256 (`bytea`, 32 bytes) with no column SELECT grant |
+| `ctf_attempts` | UUID PK; caller, challenge, correctness, timestamp; submitted flags never persisted |
+| `ctf_solves` | PK `(challenge_id,user_id)`; points snapshot; optional linked write-up document |
+| `certificates` | Unique registration and random verification code; printed recipient/event/club names are snapshots |
+| `event_feedback` | Unique `(event_id,user_id)`; rating 1–5, nonempty comment, linked indexed document |
+| `documents`, `document_chunks` | Composite tenant FK; per-document chunk positions; 256-dimensional vectors, generated English full-text index |
+
+`claim_meal` requires a registered, checked-in attendee, a published event, enabled inventory, and `food.distribute`. The organization lock serializes claims; the claim PK makes replay idempotent. A failed stock CHECK rolls back the claim, movement, quantity update and audit entries.
+
+`submit_flag` accepts active members only while a CTF event is published and in its time window. A solve can award points once. Solvers publish write-ups only after the event ends, preventing live answer disclosure. Feedback requires a checked-in, completed event. Member documents and chunks are inserted in the same transaction as the feedback/solve link.
+
+`ctf_scoreboard` ranks totals per club/event using `RANK()`. `report_member_contributions` pre-aggregates attendance, completed tasks, CTF points and certificates, avoiding join multiplication, then ranks the weighted scores per club. All report views use `security_invoker=true`. The leaderboard requires `analytics.read`; custom roles may see RLS-limited totals without profile/member-read permissions.
+
+API roles have no direct writes to the new product tables. Optional modules default off; `module_enabled` and `require_module` enforce active membership, active club and settings in SQL. Public certificate verification is the only intentional anonymous capability: a definer function returns four printed fields for an unguessable valid code, with no anonymous table access.
 
 ---
 
@@ -344,7 +291,7 @@ The schema is in **3NF**, with two deliberate, controlled exceptions.
 
 Composite index column order follows the **leftmost-prefix rule**: the queue index starts with `organization_id` because every query is scoped to one organization.
 
-Planned: GIN on `tsvector` for full-text search and **HNSW** (`vector_cosine_ops`) on `document_chunks.embedding`. For very large audit logs, BRIN on `occurred_at` or time partitioning.
+Implemented: GIN on `tsvector` for full-text search and **HNSW** (`vector_cosine_ops`) on `document_chunks.embedding`. For very large audit logs, BRIN on `occurred_at` or time partitioning.
 
 ---
 
@@ -381,6 +328,9 @@ All views use `WITH (security_invoker = true)` so RLS on the underlying tables a
 | `report_review_turnaround` | Average / median / max hours to review, per organization | `AVG`, `percentile_cont(0.5) WITHIN GROUP`, `GROUP BY` |
 | `report_role_distribution` | Active members per role, including empty roles | `LEFT JOIN` + `COUNT(col)` |
 | `report_monthly_applications` | Applications per month by outcome | `date_trunc`, `GROUP BY` |
+| `report_event_attendance` | Registration, attendance and fill rates per event | Pre-aggregated CTEs, `NULLIF` |
+| `ctf_scoreboard` | Points and shared ranks per club/event | `SUM`, `RANK()` |
+| `report_member_contributions` | Attendance, task, CTF and certificate totals per active member | Pre-aggregated CTEs, weighted score, `RANK()` |
 
 Further demo queries (HAVING, correlated subquery, `RANK()`, running totals) are in [`supabase/queries/demo_reports.sql`](../supabase/queries/demo_reports.sql). `npm run demo:reports` runs them on sample data.
 

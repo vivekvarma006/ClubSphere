@@ -56,15 +56,20 @@ The browser can also talk to the Supabase Data API directly with the publishable
 | T25 | Clickjacking / MIME sniffing | T | `X-Frame-Options: DENY`, `nosniff`, HSTS, no `X-Powered-By` | e2e smoke "security headers" |
 | T26 | Relying on the proxy for authorization (bypass like CVE-2025-29927) | E | Proxy only refreshes sessions; every service re-verifies | Architecture |
 | T27 | Service-role key or DB URL leaked | E/I | Server-only env vars; not prefixed `NEXT_PUBLIC_`; service role unused by the app; least-privilege DB login role in production | `.env.example`, DEPLOYMENT.md |
-| T28 | Request floods (sign-up spam, request spam) | D | Supabase Auth rate limits; one pending request per club per user. **No app-level rate limiting yet.** | Residual risk |
+| T28 | Request floods (sign-up spam, request spam) | D | Supabase Auth rate limits; one pending request per club per user. Durable per-user counters in a separate committed transaction: membership requests 6/10 minutes, scans 120/minute, flags 20/minute. | Residual risk |
 
 ## Residual risks and known limitations
 
 1. **Concurrency tests pass on local PostgreSQL 18.6** using the Supabase shim (2026-11-02). Verification against a full Supabase stack is still required before production.
-2. **No Content-Security-Policy yet.** Planned with the Phase 2 UI, once third-party origins are known.
-3. **No application rate limiting** on membership requests or reviews beyond Supabase Auth's own limits.
+2. **Nonce Content-Security-Policy.** Production scripts require a per-response nonce; inline styles are permitted for club branding. All pages are dynamic and proxy responses use private/no-store caching.
+3. **Rate limits are identity-based.** Membership/scanner/flag service entry points commit reservations before processing, so failures consume quota across instances. Supabase Auth remains responsible for anonymous sign-up/login abuse; use gateway limits for floods and direct API exposure. Reviewer operations do not have a separate app quota.
 4. **Least-privilege DB role** (`clubsphere_app`) is documented but must be created and verified in each Supabase project. Until then, the app connects as `postgres` and relies on `SET LOCAL ROLE authenticated` in every transaction.
-5. **Browser E2E auth flows** (Google OAuth, email verification, recovery, identity linking) are specified but not automated until the Phase 2 screens exist.
+5. **Browser E2E auth flows** (Google OAuth, email verification, recovery, identity linking) are still require a configured staging Supabase project; mocked action/route tests and offline demo browser tests run locally.
 6. **Report accuracy for custom roles**: a custom role with `analytics.read` but without `member.read`/`membership.review` would see partial totals (RLS-limited, never another club's data).
 7. **Audit log growth**: no retention or partitioning policy yet.
 8. **Supabase shim**: DB tests emulate the parts of Supabase the schema uses. Behaviour differences are possible; staging verification against real Supabase is required before production.
+
+
+## Product module protections
+
+Meal replay is stopped by the composite primary key, with stock updates in the same transaction and nonnegative quantity enforced by CHECK. CTF flags are hashed with SHA-256 and the hash column has no API SELECT grant; attempts contain correctness only. Write-ups require a recorded solve and an ended event. Certificate codes contain 244 random bits; anonymous verification exposes only printed name, event, issuer and issue time. Feedback requires attendance and is explicitly labelled as shared in the club knowledge base. Optional-module SQL gates deny suspended members and inactive clubs.

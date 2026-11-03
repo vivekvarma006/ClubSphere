@@ -14,7 +14,7 @@ Effective permissions in organization *O* for user *U* are the union of permissi
 
 Membership in organization A never affects anything in organization B: every check takes the organization id from the row being acted on.
 
-## Permission catalog (Phase 1)
+## Permission catalog (foundation)
 
 | Permission | Allows | Owner | Officer | Member |
 |---|---|:-:|:-:|:-:|
@@ -78,4 +78,23 @@ Every **❌** cell involving another organization is covered by a test: see `tes
 ## Privileged credentials
 
 - **Service role key**: bypasses RLS. Not used by the application at all; reserved for one-off admin scripts.
-- **`DATABASE_URL`** (server only): in production, a dedicated login role that can only `SET ROLE authenticated` (see [DEPLOYMENT.md](DEPLOYMENT.md#least-privilege-database-role)). If code ever forgot to switch role, that login role would have no table privileges and the query would fail closed.
+- **`DATABASE_URL`** (server only): in production, a dedicated login role that can only `SET ROLE authenticated` or `anon` (see [DEPLOYMENT.md](DEPLOYMENT.md#least-privilege-database-role)). If code ever forgot to switch role, that login role would have no table privileges and the query would fail closed.
+
+
+## Product module permissions and eligibility
+
+| Capability | Default roles | Additional conditions |
+|---|---|---|
+| `event.manage`, `document.manage` | owner, officer | Organization scope; existing event/document policies |
+| `event.checkin` | owner, officer, volunteer | Published event, valid private registration token |
+| `inventory.manage` | owner, officer | Inventory enabled; records stock movements and creates meal slots |
+| `food.distribute` | owner, officer, volunteer | Inventory enabled; checked-in attendee; exactly one claim per meal slot |
+| `task.manage` | owner, officer | Volunteers enabled; same-club active assignees |
+| `ctf.manage` | owner, officer | CTF enabled; challenge creation in a CTF event |
+| `certificate.issue` | owner, officer | Certificates enabled; completed event; attendees only |
+| Complete own task | active assigned member | Volunteers enabled; immutable completion on replay |
+| Submit CTF flag / write-up | active member / solver | CTF enabled; flags during event; write-ups after event |
+| Submit feedback | active checked-in attendee | Feedback enabled; completed event; one response per person |
+| Public certificate verification | anyone with code | Active issuer club; no table grant; only printed fields returned |
+
+Owners receive all **16** registered permissions. New modules use `private.register_permission` so existing and newly created system roles receive the same defaults. The settings page supports independent `role.manage` and `org.settings.manage` access. Deleting a custom role still passes through the existing cascading-effects RLS policy, including `role.assign` and the permission subset check.

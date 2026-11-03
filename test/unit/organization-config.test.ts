@@ -4,7 +4,7 @@ import { OrganizationBrandingSchema, parseOrganizationSettings } from "@/server/
 describe("organization settings", () => {
   it("fills safe defaults for an empty settings object (every module off)", () => {
     expect(parseOrganizationSettings({})).toEqual({
-      features: { events: false, volunteers: false, inventory: false, certificates: false, analytics: false },
+      features: { events: false, volunteers: false, inventory: false, certificates: false, ctf: false, feedback: false, analytics: false },
       notifications: { notifyReviewersOnNewRequest: true },
     });
   });

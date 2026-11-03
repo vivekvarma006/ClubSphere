@@ -1,14 +1,14 @@
 import { test } from "@playwright/test";
 
-// Browser flows against a real Supabase project. The sign-in, sign-up and
-// onboarding screens are built in Phase 2; until then these are tracked as
-// fixme so the gap stays visible in every test run.
+// Provider end-to-end cases require a staging Supabase project, email capture
+// and a Google OAuth test client. The forms and actions are implemented; these
+// external provider scenarios remain fixme so the verification gap stays visible.
 //
-// Enable with E2E_SUPABASE=1 once the screens exist. Use a local stack
+// Enable with E2E_SUPABASE=1 with staging credentials. Use a local stack
 // (`supabase start`, which captures emails in Inbucket) or a staging project
 // with a Google OAuth test client. Never run against production.
 
-test.describe("authentication flows (Phase 2)", () => {
+test.describe("authentication provider flows", () => {
   test.skip(!process.env.E2E_SUPABASE, "requires a Supabase project; see docs/TEST_STRATEGY.md");
 
   test.fixme("email/password sign-up sends a verification email and blocks membership requests until verified", async () => {});

@@ -12,6 +12,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // PGlite instances each carry a WASM heap; keep CI memory bounded.
+    maxWorkers: 2,
     include: ["test/**/*.test.ts"],
     exclude: ["test/e2e/**", "node_modules/**"],
     // Each DB test file migrates its own PGlite template (~1-3 s).

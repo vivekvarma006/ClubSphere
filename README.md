@@ -12,7 +12,7 @@ ClubSphere is **club-agnostic**. No club, university or role name is hardcoded. 
 |---|---|---|
 | 1. Foundation | Identity, organizations, per-org roles and permissions, membership requests and review, suspension, audit log, report views, auth plumbing, CI | ✅ Built and covered by automated tests |
 | **Review-1 prototype** (tag `review-1-prototype`) | Offline demo mode, join flow, review queue, events with capacity, private QR codes, exactly-once QR check-in scanner, pgvector + full-text hybrid search, reports UI | ✅ Built, tested, demo walkthrough in [docs/PROTOTYPE_DEMO.md](docs/PROTOTYPE_DEMO.md) |
-| Remaining | Supabase sign-in screens, member management UI, food distribution, inventory, volunteers, CTF, certificates, feedback, contribution analytics, settings/admin | 📐 Planned in [docs/ROADMAP.md](docs/ROADMAP.md) |
+| Product modules | Supabase sign-in screens, member management, inventory and meals, volunteer tasks, CTF, certificates, feedback, contributions, settings/admin | Implemented; verification and release status in [docs/ROADMAP.md](docs/ROADMAP.md) |
 
 ## Quick start (no cloud account needed)
 
@@ -34,7 +34,8 @@ To run the app against Supabase, follow [docs/SETUP.md](docs/SETUP.md).
 | `npm run dev` | Development server on http://localhost:3000 |
 | `npm run lint` · `npm run typecheck` | ESLint · strict TypeScript |
 | `npm test` · `npm run test:db` | All Vitest suites · database suite only |
-| `npm run build` · `npx playwright test` | Production build · end-to-end tests |
+| `npm run build` · `npx playwright test` | Production build · HTTP smoke / configured Supabase tests |
+| `npm run test:e2e:demo` | Chromium browser flows on a fresh isolated demo database (build first) |
 | `npm run demo` · `npm run demo:start` | Offline demo (dev server · production server after `npm run build`) |
 | `npm run demo:reset` | Delete the local demo database (re-seeded on next start) |
 | `npm run models:download` | Fetch the semantic-search embedding model (pinned, SHA-256 verified) |
@@ -70,3 +71,6 @@ docs/                  documentation
 - The Supabase **service-role key is not used** by the application.
 - All server database work runs as the `authenticated` role with the verified user's id, so RLS applies.
 - Secrets live in environment variables only; see [.env.example](.env.example).
+
+
+Optional product modules default off for existing clubs. An owner enables them under **Club → Settings**; fresh demo clubs enable them automatically. Inventory managers create stock items and meal slots, then volunteers use **Scan QR → Meal**. Completed events can issue attendee certificates and receive feedback. CTF flags are accepted during published event times, and solvers can publish write-ups after the event ends. Contribution reports are under **Contributions** for analytics readers. Public certificates are available at `/verify/[code]`.

@@ -14,6 +14,9 @@ test("responses carry baseline security headers", async ({ request }) => {
   expect(headers["x-frame-options"]).toBe("DENY");
   expect(headers["x-content-type-options"]).toBe("nosniff");
   expect(headers["x-powered-by"]).toBeUndefined();
+  expect(headers["content-security-policy"]).toMatch(/script-src[^;]*nonce-/);
+  expect(headers["content-security-policy"]).not.toContain("unsafe-eval");
+  expect(headers["cache-control"]).toContain("no-store");
 });
 
 test("health check reports status without leaking internals", async ({ request }) => {
@@ -56,4 +59,16 @@ test("password recovery destination exists and explains a missing session", asyn
   expect(html).toContain("Choose a new password");
   expect(html).toContain("Open the password recovery link");
   expect(html).not.toContain('name="password"');
+});
+
+test("Supabase auth forms render without exposing credentials", async ({ request }) => {
+  for (const [mode, title] of [["", "Sign in"], ["signup", "Create your account"], ["forgot", "Reset your password"]]) {
+    const res = await request.get(`/login?mode=${mode}&next=//evil.example`);
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    expect(html).toContain(title);
+    expect(html).toContain('name="email"');
+    expect(html).toContain('value="/dashboard"');
+    expect(html).not.toContain("prototype notice");
+  }
 });

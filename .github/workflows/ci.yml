@@ -51,3 +51,9 @@ jobs:
 
       - name: E2E smoke tests (HTTP only, no browser download needed)
         run: npx playwright test test/e2e/smoke.spec.ts
+
+      - name: Install Chromium for offline demo browser tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Demo browser flows (isolated local database)
+        run: npm run test:e2e:demo

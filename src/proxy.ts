@@ -1,3 +1,4 @@
+import { contentSecurityPolicy } from "@/lib/content-security-policy";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -10,7 +11,17 @@ import { NextResponse, type NextRequest } from "next/server";
  * a proxy can be bypassed or misconfigured and must never be the only check.
  */
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const policy = contentSecurityPolicy(nonce, process.env.NODE_ENV === "development", process.env.NEXT_PUBLIC_SUPABASE_URL);
+  request.headers.set("x-nonce", nonce);
+  request.headers.set("Content-Security-Policy", policy);
+  const nextResponse = () => {
+    const next = NextResponse.next({ request: { headers: request.headers } });
+    next.headers.set("Content-Security-Policy", policy);
+    next.headers.set("Cache-Control", "private, no-store");
+    return next;
+  };
+  let response = nextResponse();
   if (process.env.AUTH_MODE === "demo") return response; // demo sessions need no refresh
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,7 +35,7 @@ export async function proxy(request: NextRequest) {
       },
       setAll(cookiesToSet, headers) {
         for (const { name, value } of cookiesToSet) request.cookies.set(name, value);
-        response = NextResponse.next({ request });
+        response = nextResponse();
         for (const { name, value, options } of cookiesToSet) response.cookies.set(name, value, options);
         // no-store headers: a CDN must never cache a response carrying someone's session.
         for (const [header, value] of Object.entries(headers)) response.headers.set(header, value);

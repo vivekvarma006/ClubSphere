@@ -11,6 +11,7 @@ const PORT = Number(process.env.E2E_PORT ?? 3100);
  */
 export default defineConfig({
   testDir: "test/e2e",
+  testIgnore: "demo-flows.spec.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,

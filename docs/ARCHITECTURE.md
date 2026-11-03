@@ -75,7 +75,7 @@ Using "approve a membership request" as the example:
     ├── integration/                   service layer through Drizzle on PGlite
     ├── unit/                          auth routes, errors, logging, redirects, config schemas
     ├── concurrency/                   real-Postgres race tests (needs TEST_DATABASE_URL)
-    └── e2e/                           Playwright: HTTP smoke now, browser auth flows in Phase 2
+    └── e2e/                           Playwright: HTTP smoke, offline browser flows, staging provider cases
 ```
 
 ## Conventions every new module must follow
@@ -134,3 +134,14 @@ Load profile assumed for sizing: 10 organizations × 2,000 members, peak 300 che
 - **Transactions** are short: no network calls inside `withUserContext`.
 - **Pooling**: Supabase transaction pooler (port 6543), `prepare: false`, small per-instance pool (`DATABASE_POOL_MAX`).
 - **Caching**: none of authorization-dependent data. With Cache Components enabled, nothing is cached unless explicitly marked `use cache`.
+
+
+## Product modules (2026-11-03)
+
+`services/operations.ts` implements inventory, meals, volunteers, CTF, certificates, feedback and contributions with shared transaction/feature checks and explicit procedure calls. `services/administration.ts` covers club settings, custom roles, member-facing administration and platform controls. Club navigation follows permissions and optional-module settings; pages and actions independently enforce access.
+
+The new SQL modules use `require_module` to lock the club, check active membership, feature enablement and any required permission before writing. All tenant references are composite. Settings/custom-role wrappers are SECURITY INVOKER, preserving the established RLS and cascading-delete authorization rules. Member feedback/write-up procedures authorize attendance/solve eligibility before using an internal indexing helper; document chunks commit atomically with their source record.
+
+`reserveRequest` reserves a durable identity-based quota in a separate transaction before membership requests, QR scans or flag submissions. Rejected attempts still consume the budget. Counter storage is private and bounded to three rows per identity. Authentication abuse limits remain Supabase's responsibility.
+
+`proxy.ts` injects a fresh script nonce and no-store policy. The root layout opts into dynamic rendering so Next.js nonces the framework scripts. The public certificate service explicitly switches to `anon`, and the only exposed anonymous function returns printed certificate fields for a random code. No anonymous table grants were added.

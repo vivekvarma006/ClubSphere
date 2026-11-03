@@ -1,9 +1,10 @@
 import "server-only";
+import { reserveRequest } from "@/server/rate-limit";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { VerifiedActor } from "@/server/auth/actor";
 import { assertPermission, loadOrgAccess } from "@/server/authz/org-access";
-import { membershipRequests, organizationMemberships, organizations, profiles } from "@/server/db/schema";
+import { membershipRequests, membershipRoles, organizationRoles, organizationMemberships, organizations, profiles } from "@/server/db/schema";
 import type { Database, DbTransaction } from "@/server/db/types";
 import { queryRows, withUserContext } from "@/server/db/user-context";
 import { AppError, handleServiceError } from "@/server/errors";
@@ -50,6 +51,7 @@ export async function submitMembershipRequest(
   input: SubmitMembershipRequestInput,
 ): Promise<{ requestId: string }> {
   return run("membership.request", async () => {
+    await reserveRequest(db, actor, "membership");
     const { organizationSlug, answers } = SubmitMembershipRequestInput.parse(input);
     return withUserContext(db, actor, async (tx) => {
       const [row] = await queryRows(
@@ -284,6 +286,95 @@ export async function reinstateMember(db: Database, actor: VerifiedActor, input:
       assertPermission(access, "membership.suspend");
       await assertBelongsToOrg(tx, "organization_memberships", membershipId, access.organization.id, "Member not found.");
       await tx.execute(sql`select private.reinstate_membership(${membershipId}::uuid)`);
+    });
+  });
+}
+
+
+export async function listMembers(
+  db: Database,
+  actor: VerifiedActor,
+  organizationSlug: string,
+) {
+  return run("membership.list", () =>
+    withUserContext(db, actor, async (tx) => {
+      const access = await loadOrgAccess(tx, organizationSlug);
+      assertPermission(access, "member.read");
+      const members = await tx
+        .select({
+          id: organizationMemberships.id,
+          userId: profiles.id,
+          displayName: profiles.displayName,
+          email: profiles.email,
+          status: organizationMemberships.status,
+        })
+        .from(organizationMemberships)
+        .innerJoin(profiles, eq(profiles.id, organizationMemberships.userId))
+        .where(
+          eq(organizationMemberships.organizationId, access.organization.id),
+        )
+        .orderBy(asc(profiles.displayName));
+      const roles = await tx
+        .select({ id: organizationRoles.id, name: organizationRoles.name })
+        .from(organizationRoles)
+        .where(eq(organizationRoles.organizationId, access.organization.id));
+      const assigned = await tx
+        .select()
+        .from(membershipRoles)
+        .where(eq(membershipRoles.organizationId, access.organization.id));
+      return {
+        members: members.map((m) => ({
+          ...m,
+          roleIds: assigned
+            .filter((r) => r.membershipId === m.id)
+            .map((r) => r.roleId),
+        })),
+        roles,
+        canSuspend: access.permissions.has("membership.suspend"),
+        canAssign: access.permissions.has("role.assign"),
+      };
+    }),
+  );
+}
+
+export async function changeMemberRole(
+  db: Database,
+  actor: VerifiedActor,
+  input: {
+    organizationSlug: string;
+    membershipId: string;
+    roleId: string;
+    revoke: boolean;
+  },
+) {
+  return run("membership.role", async () => {
+    const membershipId = z.uuid().parse(input.membershipId);
+    const roleId = z.uuid().parse(input.roleId);
+    await withUserContext(db, actor, async (tx) => {
+      const access = await loadOrgAccess(tx, input.organizationSlug);
+      assertPermission(access, "role.assign");
+      await assertBelongsToOrg(
+        tx,
+        "organization_memberships",
+        membershipId,
+        access.organization.id,
+        "Member not found.",
+      );
+      const [role] = await tx
+        .select({ id: organizationRoles.id })
+        .from(organizationRoles)
+        .where(
+          and(
+            eq(organizationRoles.id, roleId),
+            eq(organizationRoles.organizationId, access.organization.id),
+          ),
+        );
+      if (!role) throw new AppError("NOT_FOUND", "Role not found.");
+      await tx.execute(
+        input.revoke
+          ? sql`select private.revoke_role(${membershipId}::uuid, ${roleId}::uuid)`
+          : sql`select private.assign_role(${membershipId}::uuid, ${roleId}::uuid)`,
+      );
     });
   });
 }

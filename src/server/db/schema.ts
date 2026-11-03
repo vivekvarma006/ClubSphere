@@ -314,3 +314,117 @@ export const reportEventAttendance = pgView("report_event_attendance", {
   attendanceRatePct: numeric("attendance_rate_pct"),
   fillRatePct: numeric("fill_rate_pct"),
 }).existing();
+
+// Remaining product modules (migrations 1300–1900).
+const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
+export const inventoryItems = pgTable("inventory_items", {
+  id: uuid("id").notNull(),
+  organizationId: uuid("organization_id").notNull(),
+  name: text("name").notNull(),
+  quantity: integer("quantity").notNull(),
+});
+export const stockMovements = pgTable("stock_movements", {
+  id: uuid("id").notNull(),
+  organizationId: uuid("organization_id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  delta: integer("delta").notNull(),
+  reason: text("reason").notNull(),
+  createdBy: uuid("created_by"),
+  createdAt: timestamptz("created_at").notNull(),
+});
+export const mealSlots = pgTable("meal_slots", {
+  id: uuid("id").notNull(),
+  organizationId: uuid("organization_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  name: text("name").notNull(),
+});
+export const foodClaims = pgTable("food_claims", {
+  organizationId: uuid("organization_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  registrationId: uuid("registration_id").notNull(),
+  mealSlotId: uuid("meal_slot_id").notNull(),
+  claimedAt: timestamptz("claimed_at").notNull(),
+  claimedBy: uuid("claimed_by"),
+});
+export const volunteerTasks = pgTable("volunteer_tasks", {
+  id: uuid("id").notNull(),
+  organizationId: uuid("organization_id").notNull(),
+  eventId: uuid("event_id"),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  dueAt: timestamptz("due_at"),
+  createdAt: timestamptz("created_at").notNull(),
+});
+export const taskAssignments = pgTable("task_assignments", {
+  organizationId: uuid("organization_id").notNull(),
+  taskId: uuid("task_id").notNull(),
+  membershipId: uuid("membership_id").notNull(),
+  assignedAt: timestamptz("assigned_at").notNull(),
+  completedAt: timestamptz("completed_at"),
+});
+export const ctfChallenges = pgTable("ctf_challenges", {
+  id: uuid("id").notNull(),
+  organizationId: uuid("organization_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  points: integer("points").notNull(),
+  flagHash: bytea("flag_hash").notNull(),
+});
+export const ctfAttempts = pgTable("ctf_attempts", {
+  id: uuid("id").notNull(),
+  organizationId: uuid("organization_id").notNull(),
+  challengeId: uuid("challenge_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  correct: boolean("correct").notNull(),
+  attemptedAt: timestamptz("attempted_at").notNull(),
+});
+export const ctfSolves = pgTable("ctf_solves", {
+  organizationId: uuid("organization_id").notNull(),
+  challengeId: uuid("challenge_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  solvedAt: timestamptz("solved_at").notNull(),
+  points: integer("points").notNull(),
+  documentId: uuid("document_id"),
+});
+export const certificates = pgTable("certificates", {
+  id: uuid("id").notNull(),
+  organizationId: uuid("organization_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  registrationId: uuid("registration_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  verificationCode: text("verification_code").notNull(),
+  recipientName: text("recipient_name").notNull(),
+  eventTitle: text("event_title").notNull(),
+  organizationName: text("organization_name").notNull(),
+  issuedAt: timestamptz("issued_at").notNull(),
+});
+export const eventFeedback = pgTable("event_feedback", {
+  id: uuid("id").notNull(),
+  organizationId: uuid("organization_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  rating: integer("rating").notNull(),
+  comment: text("comment").notNull(),
+  documentId: uuid("document_id").notNull(),
+  createdAt: timestamptz("created_at").notNull(),
+});
+export const ctfScoreboard = pgView("ctf_scoreboard", {
+  organizationId: uuid("organization_id"),
+  eventId: uuid("event_id"),
+  userId: uuid("user_id"),
+  points: bigint("points", { mode: "number" }),
+  rank: bigint("rank", { mode: "number" }),
+}).existing();
+export const reportMemberContributions = pgView("report_member_contributions", {
+  organizationId: uuid("organization_id"),
+  userId: uuid("user_id"),
+  displayName: text("display_name"),
+  attended: bigint("attended", { mode: "number" }),
+  tasksCompleted: bigint("tasks_completed", { mode: "number" }),
+  ctfPoints: bigint("ctf_points", { mode: "number" }),
+  certificates: bigint("certificates", { mode: "number" }),
+  score: bigint("score", { mode: "number" }),
+  rank: bigint("rank", { mode: "number" }),
+}).existing();

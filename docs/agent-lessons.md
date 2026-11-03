@@ -11,3 +11,15 @@
 - **Failure:** Deleting a custom role bypassed child-table RLS and removed permissions and assignments that the caller could not revoke directly.
 - **Rule:** Include cascading effects when checking parent DELETE permissions. Preserve deployed migrations by adding a forward migration, and update rollback dependency order when a policy references another table.
 - **Verified:** Restricted deletion, authorized deletion, and rollback/re-apply tests pass.
+
+## 2026-11-03: Serialize arrays explicitly in raw Drizzle SQL
+
+- **Failure:** Interpolating a JavaScript permission array in a raw `sql` template generated a SQL tuple, causing malformed-array and record-cast errors in custom-role updates.
+- **Rule:** For raw SQL array parameters, use a parameterized JSON array with `array(select jsonb_array_elements_text(...::jsonb))`, or an explicitly supported driver encoding. Do not assume `${values}::text[]` binds one array.
+- **Verified:** Service tests exercise single- and multiple-permission custom roles through Drizzle on PGlite, including rollback of a forbidden replacement.
+
+## 2026-11-03: Wait for authentication navigation in browser tests
+
+- **Failure:** An E2E helper navigated to login before the sign-out Server Action completed. Under load, login saw the old session and redirected to the dashboard, leaving the test waiting for another identity's button.
+- **Rule:** Await the resulting auth redirect before issuing another navigation. A click completing is not proof that its asynchronous Server Action committed.
+- **Verified:** The helper explicitly waits for `/login`; all seven Chromium workflows pass after the fix.

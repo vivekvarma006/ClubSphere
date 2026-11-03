@@ -9,8 +9,8 @@
 | Database | `test/db/*.test.ts` | PGlite (PostgreSQL 18 compiled to WASM) + `supabase-shim.sql` | Migrations apply on a clean DB; constraints, triggers, procedures, RLS, grants, views and audit behave as designed; rollback → re-apply works; Drizzle mirror matches the schema |
 | Integration | `test/integration` | PGlite through Drizzle | The real service layer (Zod → `withUserContext` → RLS → procedures → error mapping) |
 | Unit | `test/unit` | Node | Auth callback/confirm routes (Supabase faked), JWT-claims validation, safe redirects, error mapping, log redaction, env and config schemas |
-| Concurrency | `test/concurrency` | **Real Postgres** (`TEST_DATABASE_URL`) | Simultaneous duplicate requests, simultaneous approvals, mutual owner suspension (write skew) |
-| E2E | `test/e2e` | Playwright against `next start` | HTTP smoke (pages, redirects, headers, health). Browser auth flows are tracked as `fixme` until the Phase 2 screens exist |
+| Concurrency | `test/concurrency` | **Real Postgres** (`TEST_DATABASE_URL`) | Simultaneous duplicate requests, approvals, mutual owner suspension, meal replay and last-stock races |
+| E2E | `test/e2e` | Playwright against `next start` | HTTP smoke (pages, redirects, headers, health); Chromium demo flows in an isolated offline database. Real provider email/OAuth scenarios still require staging |
 
 ## Fixtures
 
@@ -55,7 +55,8 @@ During development, the org-scoping condition in `private.has_org_permission` wa
 ```bash
 npm test                     # unit + db + integration (concurrency skipped without TEST_DATABASE_URL)
 npm run test:db              # database suite only
-npx playwright test          # e2e (run `npm run build` first)
+npx playwright test          # HTTP smoke / configured Supabase tests (build first)
+npm run test:e2e:demo         # Chromium flows on a fresh isolated offline database
 ```
 
 Concurrency suite against a local Supabase stack (Docker required):
@@ -71,3 +72,16 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npx vi
 On 2026-11-02 (local, Linux, Node 22): **210 tests passed** across separate runs: 61 unit, 146 database/integration (one worker to limit memory use), and 3 concurrency tests on temporary PostgreSQL 18.6 with the Supabase shim. ESLint, type checking, and the production build passed; HTTP Playwright smoke passed 8/8. No real Supabase credentials were used. Full browser auth/provider flows remain unverified.
 
 On 2026-11-03 (local, Windows, Node 22.21), after the Review-1 prototype: **247 passed, 3 skipped** (concurrency suite, needs `TEST_DATABASE_URL`) across 20 files, including the new `events`, `knowledge-base` and `demo-seed` database suites. ESLint and `tsc` clean, `next build` successful, HTTP Playwright smoke 8/8. The prototype screens were verified manually in a browser in demo mode (sign-in, approve request, register, QR display, scanner check-in and duplicate scan, semantic search, reports, permission-based 404s). Browser automation for these flows is on the [roadmap](ROADMAP.md). Concurrency runs now need Postgres with the `vector` extension.
+
+
+## Product module verification (2026-11-03)
+
+- `product-modules.test.ts`: stock rollback and replay, cross-club references, assignee-only completion, hidden CTF hashes, exactly-once scoring, solver write-ups, public certificate field allow-list, feedback eligibility, aggregate scores, suspension/feature gates and durable quotas.
+- `administration.test.ts`: settings transactions, custom-role permission replacement/deletion, escalation denial, member scoping and platform-only operations.
+- `product-services.test.ts`: the complete module workflow through Drizzle, chunk embeddings, public verification under `anon`, and failed scans consuming their budget.
+- `login-actions.test.ts` and `content-security-policy.test.ts`: auth input validation, safe redirects, sanitized errors, configured callbacks and production nonce rules.
+- `demo-flows.spec.ts`: real Chromium forms, inventory/meal scanner, task completion, permission-based 404s, CTF scoreboard, feedback search, certificate verification, settings questions, role lifecycle and suspension. It uses a fresh temporary database and never resets `.demo-data`.
+
+PGlite workers are capped at two to bound WASM memory in CI. Browser tests use hash embeddings so they need no model download. Physical-camera behavior and live Supabase provider/email delivery remain separate environment-dependent checks.
+
+Release-source verification on 2026-11-03 (Linux, Node 22.22.2): **299 Vitest tests passed; 4 real-Postgres tests skipped** without `TEST_DATABASE_URL`. **7/7 Chromium demo flows** and **9/9 HTTP smoke checks** passed. ESLint, TypeScript, production build and lockfile clean-install dry-run passed. Mobile layout at 390 px was checked for overflow and visually inspected. Supabase provider/email delivery, physical-camera capture and multi-connection Postgres verification remain environment-dependent.

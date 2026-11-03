@@ -68,6 +68,10 @@ export async function seedDemoData(pg: PGlite): Promise<void> {
   const cyber = await createOrg("cyber-sec", "Cyber Security Club", id.arjun);
   const robotics = await createOrg("robotics", "Robotics Society", id.neha);
 
+  for (const [owner, org] of [[id.arjun, cyber], [id.neha, robotics]]) {
+    await asUser(pg, owner!, (tx) => tx.query(`update public.organizations set settings = '{"features":{"events":true,"volunteers":true,"inventory":true,"ctf":true,"certificates":true,"feedback":true,"analytics":true}}'::jsonb where id=$1`, [org]));
+  }
+
   // Club-specific configuration, as each owner would set it.
   await asUser(pg, id.arjun, async (tx) => {
     await tx.query(

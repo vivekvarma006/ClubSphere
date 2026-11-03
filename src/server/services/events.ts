@@ -1,4 +1,5 @@
 import "server-only";
+import { reserveRequest } from "@/server/rate-limit";
 import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { VerifiedActor } from "@/server/auth/actor";
@@ -53,7 +54,7 @@ export async function listEvents(
   db: Database,
   actor: VerifiedActor,
   organizationSlug: string,
-  when: "upcoming" | "past",
+  when: "upcoming" | "past" | "all",
 ): Promise<EventSummary[]> {
   return run("events.list", async () => {
     const slug = OrganizationSlug.parse(organizationSlug);
@@ -80,7 +81,7 @@ export async function listEvents(
         .where(
           and(
             eq(events.organizationId, access.organization.id),
-            when === "upcoming" ? gte(events.endsAt, now) : lt(events.endsAt, now),
+            when === "all" ? undefined : when === "upcoming" ? gte(events.endsAt, now) : lt(events.endsAt, now),
           ),
         )
         .orderBy(when === "upcoming" ? asc(events.startsAt) : desc(events.startsAt))
@@ -303,6 +304,7 @@ export async function checkInByToken(
   input: { organizationSlug: string; eventId: string; scanned: string },
 ): Promise<CheckInResult> {
   return run("events.check_in", async () => {
+    await reserveRequest(db, actor, "scan");
     const { organizationSlug, eventId } = EventRef.parse(input);
     const token = extractToken(z.string().max(500).parse(input.scanned));
     return withUserContext(db, actor, async (tx) => {

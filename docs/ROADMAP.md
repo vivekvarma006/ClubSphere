@@ -1,6 +1,6 @@
 # Roadmap: from the Review-1 prototype to the finished product
 
-Checkpoint: tag **`review-1-prototype`** (see [PROTOTYPE_DEMO.md](PROTOTYPE_DEMO.md)). Everything below is what remains for the final product, in the intended order. Each module follows the conventions in [ARCHITECTURE.md](ARCHITECTURE.md#conventions-every-new-module-must-follow): organization-scoped tables with composite foreign keys, RLS plus explicit grants, permissions registered with `private.register_permission(...)`, writes through `private.*` procedures, audit triggers, and forbidden-path tests.
+Checkpoint: tag **`review-1-prototype`** (see [PROTOTYPE_DEMO.md](PROTOTYPE_DEMO.md)). The numbered list below records the requested product work, in its intended order. Each module follows the conventions in [ARCHITECTURE.md](ARCHITECTURE.md#conventions-every-new-module-must-follow): organization-scoped tables with composite foreign keys, RLS plus explicit grants, permissions registered with `private.register_permission(...)`, writes through `private.*` procedures, audit triggers, and forbidden-path tests.
 
 ## Done in the prototype
 
@@ -13,7 +13,13 @@ Checkpoint: tag **`review-1-prototype`** (see [PROTOTYPE_DEMO.md](PROTOTYPE_DEMO
 | Offline demo mode (local PGlite database, demo sign-in, seed data) | `src/server/demo/*`, `src/server/auth/demo-session.ts`, `scripts/demo.mjs` |
 | Web UI: login (demo), dashboard, join flow, club overview, review queue, events (list, create, detail, QR), scanner, knowledge base, reports | `src/app/**` |
 
-## Remaining work, in order
+## Implementation checkpoint (2026-11-03)
+
+Items 1–9 are implemented. Item 10 includes a nonce CSP, durable request budgets, Chromium demo flows in CI, updated authorization/schema documentation and development rollbacks. Optional modules default off for existing clubs and can be enabled in Settings; new demo clubs enable them. The package is version `1.0.0`. Local verification: 299 Vitest cases, seven Chromium workflows and nine HTTP smoke checks pass, along with lint, typecheck and production build.
+
+Verification evidence is recorded in [TEST_STRATEGY.md](TEST_STRATEGY.md). Production Supabase/provider checks and real multi-connection concurrency with pgvector remain deployment checks. Release marker: `v1.0` on the reviewed implementation commit, separate from production deployment.
+
+## Requested work, in order
 
 1. **Supabase sign-in screens** (email + password sign-up and login, Google OAuth button, forgot-password), replacing the prototype notice on `/login` in Supabase mode. The callback, confirm and update-password routes already exist.
 2. **Member management UI**: member list (`member.read`), suspend/reinstate, assign/revoke roles. Services and procedures already exist (`suspendMember`, `reinstateMember`, `private.assign_role`).
@@ -29,10 +35,13 @@ Checkpoint: tag **`review-1-prototype`** (see [PROTOTYPE_DEMO.md](PROTOTYPE_DEMO
 ## How to resume
 
 ```bash
-git checkout main && git pull
-npm ci && npm run models:download
-npm test                      # should be green before starting
-npm run demo                  # explore the current state
+npm ci
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e:demo         # fresh isolated local database, hash embeddings
+npm run models:download       # optional: semantic model for interactive demo
+npm run demo
 ```
 
-Known gaps carried forward: Supabase-mode UI is not built (demo mode only); no browser E2E for the new screens (verified manually on 2026-11-03); concurrency tests need a Postgres with the `vector` extension available since migration `20261103001200`.
+Remaining deployment verification: live Supabase email sign-up/confirmation, Google OAuth, recovery and account linking need staging configuration; real concurrency tests need `TEST_DATABASE_URL` and Postgres with pgvector. No cloud database or deployment is modified by the local checks. The implementation and local verification do not constitute a production deployment.

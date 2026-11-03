@@ -29,6 +29,8 @@ export const OrganizationSettingsSchema = z
         volunteers: z.boolean().default(false),
         inventory: z.boolean().default(false),
         certificates: z.boolean().default(false),
+        ctf: z.boolean().default(false),
+        feedback: z.boolean().default(false),
         analytics: z.boolean().default(false),
       })
       .strict()

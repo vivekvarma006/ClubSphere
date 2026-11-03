@@ -4,11 +4,13 @@ import { signOut } from "@/app/actions";
 import { pageContext } from "@/app/page-utils";
 import { buttonClass } from "@/components/ui";
 import { isDemoMode } from "@/server/env";
+import { isPlatformAdmin } from "@/server/services/administration";
 import { getMyProfile } from "@/server/services/clubs";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const { actor, db } = await pageContext();
   const me = await getMyProfile(db, actor);
+  const admin = await isPlatformAdmin(db, actor);
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -18,11 +20,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
       ) : null}
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 sm:gap-6 px-6 py-3">
           <Link href="/dashboard" className="font-semibold tracking-tight">
             ClubSphere
           </Link>
-          <nav className="flex gap-1 text-sm">
+          <nav className="flex flex-wrap gap-1 text-sm">
+            {admin ? <Link className={buttonClass("ghost", "sm")} href="/admin">Platform admin</Link> : null}
             <Link className={buttonClass("ghost", "sm")} href="/dashboard">
               Dashboard
             </Link>

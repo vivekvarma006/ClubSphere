@@ -18,6 +18,11 @@ const PERMISSION_LABELS: Record<(typeof PERMISSIONS)[number], string> = {
   "event.manage": "Manage events",
   "event.checkin": "Scan QR check-ins",
   "document.manage": "Publish documents",
+  "food.distribute": "Distribute meals",
+  "inventory.manage": "Manage inventory",
+  "task.manage": "Manage volunteer tasks",
+  "ctf.manage": "Manage CTF challenges",
+  "certificate.issue": "Issue certificates",
 };
 
 export default async function ClubOverview({ params }: PageProps<"/o/[slug]">) {

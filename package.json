@@ -1,6 +1,6 @@
 {
   "name": "clubsphere",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "engines": {
     "node": ">=22.12"
@@ -19,7 +19,8 @@
     "demo": "node scripts/demo.mjs dev",
     "demo:start": "node scripts/demo.mjs start",
     "demo:reset": "node scripts/demo.mjs reset",
-    "models:download": "node scripts/download-model.mjs"
+    "models:download": "node scripts/download-model.mjs",
+    "test:e2e:demo": "playwright test --config playwright.demo.config.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.14",

@@ -22,7 +22,7 @@ import {
   setEventStatus,
 } from "@/server/services/events";
 import { saveDocument } from "@/server/services/knowledge-base";
-import { reviewMembershipRequest, submitMembershipRequest, withdrawMembershipRequest } from "@/server/services/memberships";
+import { changeMemberRole, suspendMember, reinstateMember, reviewMembershipRequest, submitMembershipRequest, withdrawMembershipRequest } from "@/server/services/memberships";
 import type { ActionState } from "./action-state";
 
 /**
@@ -213,5 +213,37 @@ export async function saveDocumentAction(slug: string, _: ActionState, formData:
       visibility: text(formData, "visibility") === "officers" ? "officers" : "members",
     });
     return "Document published and indexed for search.";
+  }, `/o/${slug}`);
+}
+
+
+export async function manageMember(
+  slug: string,
+  membershipId: string,
+  _: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  return act(async ({ db, actor }) => {
+    const operation = text(fd, "operation");
+    if (operation === "suspend")
+      await suspendMember(db, actor, {
+        organizationSlug: slug,
+        membershipId,
+        reason: text(fd, "reason") || undefined,
+      });
+    else if (operation === "reinstate")
+      await reinstateMember(db, actor, {
+        organizationSlug: slug,
+        membershipId,
+      });
+    else if (operation === "assign" || operation === "revoke")
+      await changeMemberRole(db, actor, {
+        organizationSlug: slug,
+        membershipId,
+        roleId: text(fd, "roleId"),
+        revoke: operation === "revoke",
+      });
+    else throw new Error("Invalid member operation");
+    return "Member updated.";
   }, `/o/${slug}`);
 }

@@ -101,6 +101,36 @@ describe.skipIf(!url)("concurrent operations on real Postgres", () => {
     ).toBe(1);
   });
 
+  it("meal replay is idempotent and two attendees cannot consume the last stock unit", async () => {
+    await asUser(ownerA, tx => tx`update public.organizations set settings='{"features":{"inventory":true}}' where id=${orgId}`);
+    const event = await scalarAs(ownerA, tx => tx`insert into public.events(organization_id,title,starts_at,ends_at,status)
+      values(${orgId},'Meal race',now()-interval '1 hour',now()+interval '1 hour','published') returning id as v`);
+    const regA = await scalarAs(ownerA, tx => tx`select private.register_for_event(${event}) as v`);
+    const regB = await scalarAs(applicant, tx => tx`select private.register_for_event(${event}) as v`);
+    await asUser(ownerA, tx => tx`select private.check_in_registration(${regA}), private.check_in_registration(${regB})`);
+    const tokenA = await scalarAs(ownerA, tx => tx`select token as v from public.registration_credentials where registration_id=${regA}`);
+    const tokenB = await scalarAs(applicant, tx => tx`select token as v from public.registration_credentials where registration_id=${regB}`);
+    const item = await scalarAs(ownerA, tx => tx`select private.adjust_inventory(${orgId},null,'Race stock',1,'Delivery') as v`);
+    const slot = await scalarAs(ownerA, tx => tx`select private.create_meal_slot(${orgId},${event},${item},'First meal') as v`);
+    try {
+      const replay = await Promise.all([ownerA,ownerB].map(scanner => asUser(scanner, tx => tx`select private.claim_meal(${event},${slot},${tokenA}) as v`)));
+      expect(replay.map(rows => String((one(rows).v as { status: string }).status)).sort()).toEqual(['already_claimed','claimed']);
+      expect(await count(sql`select count(*)::int as n from public.food_claims where meal_slot_id=${slot}`)).toBe(1);
+      await asUser(ownerA, tx => tx`select private.adjust_inventory(${orgId},${item},null,1,'Second delivery')`);
+      const slot2 = await scalarAs(ownerA, tx => tx`select private.create_meal_slot(${orgId},${event},${item},'Second meal') as v`);
+      const race = await Promise.allSettled([tokenA,tokenB].map(token => asUser(ownerA, tx => tx`select private.claim_meal(${event},${slot2},${token})`)));
+      expect(race.map(codeOf).sort()).toEqual(['23514','ok']);
+      expect(await count(sql`select quantity as n from public.inventory_items where id=${item}`)).toBe(0);
+      expect(await count(sql`select count(*)::int as n from public.food_claims where meal_slot_id=${slot2}`)).toBe(1);
+    } finally {
+      await sql`delete from public.food_claims where event_id=${event}`;
+      await sql`delete from public.meal_slots where event_id=${event}`;
+      await sql`delete from public.stock_movements where item_id=${item}`;
+      await sql`delete from public.inventory_items where id=${item}`;
+      await sql`delete from public.events where id=${event}`;
+    }
+  });
+
   it("two owners suspending each other at once cannot leave the club ownerless (write skew)", async () => {
     const membershipOf = async (user: string) =>
       String(one(await sql`select id from public.organization_memberships where organization_id = ${orgId} and user_id = ${user}`).id);

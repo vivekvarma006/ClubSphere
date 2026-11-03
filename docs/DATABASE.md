@@ -4,7 +4,7 @@ The SQL in [`supabase/migrations/`](../supabase/migrations) is the source of tru
 
 - [1. Database choice and justification](#1-database-choice-and-justification)
 - [2. ER diagram: Phase 1 (implemented)](#2-er-diagram-phase-1-implemented)
-- [3. ER diagram: full system (Phase 3 modules designed, not yet built)](#3-er-diagram-full-system)
+- [3. ER diagram: full system (events/QR and knowledge base built; remaining modules designed)](#3-er-diagram-full-system)
 - [4. Relational schema and data dictionary](#4-relational-schema-and-data-dictionary)
 - [5. Constraints that enforce business rules](#5-constraints-that-enforce-business-rules)
 - [6. Normalization](#6-normalization)
@@ -24,7 +24,7 @@ The course asks for a choice justified by the shape of the data, not technology 
 |---|---|---|
 | Users, organizations, roles, memberships, requests, audit log (Phase 1); events, registrations, attendance, food claims, inventory, stock movements, tasks, certificates (Phase 3) | **PostgreSQL tables** | Highly related data with rules that must never be broken: one membership per person per club, no duplicate food claim, no negative stock. These need foreign keys, unique/check constraints and multi-row **ACID transactions**. Reports need joins and aggregates. |
 | Per-club configuration (branding, feature switches), membership application answers whose questions differ per club | **PostgreSQL JSONB** columns | The shape varies by organization. JSONB keeps it flexible while the database still guarantees "is a JSON object", the procedure `private.validate_profile_answers` checks answers against the club's field definitions, and Zod schemas type it in the app. |
-| CTF challenge descriptions, write-ups, event documentation, feedback text (Phase 3) | **pgvector** (vector columns in PostgreSQL) | Users need to search by *meaning* ("SQL injection walkthrough" should find a write-up titled "Bypassing a login form"). Keeping vectors next to the relational rows means the same RLS isolation, transactions and joins apply to search, with no second database to keep in sync. |
+| CTF challenge descriptions, write-ups, event documentation, feedback text (built: `documents`, `document_chunks`) | **pgvector** (vector columns in PostgreSQL) | Users need to search by *meaning* ("SQL injection walkthrough" should find a write-up titled "Bypassing a login form"). Keeping vectors next to the relational rows means the same RLS isolation, transactions and joins apply to search, with no second database to keep in sync. |
 
 **Course option used: Option 2 (SQL + vector database)**, matching the approved synopsis. See [§10](#10-vector--nosql-component) for an optional MongoDB component if reviewers require Option 1 (SQL + NoSQL). That is an open decision.
 
@@ -156,7 +156,7 @@ erDiagram
 
 ## 3. ER diagram: full system
 
-Phase 3 modules from the synopsis, **designed but not yet implemented**. Every table carries `organization_id` and uses composite foreign keys so rows cannot reference another club's data, the same convention as Phase 1.
+Modules from the synopsis. **Built in the Review-1 prototype:** events, event registrations, QR credentials (`registration_credentials`: a 64-hex random token readable only by its owner), attendance, documents and document chunks (`vector(256)`). **Still designed only:** meal slots, food claims, inventory, stock movements, volunteer tasks, CTF, certificates. Every table carries `organization_id` and uses composite foreign keys so rows cannot reference another club's data, the same convention as Phase 1.
 
 ```mermaid
 erDiagram
@@ -257,7 +257,7 @@ erDiagram
         bigint id PK
         uuid document_id FK
         text content
-        vector embedding "vector(384), HNSW index"
+        vector embedding "vector(256), HNSW index"
     }
 ```
 
@@ -390,15 +390,15 @@ Further demo queries (HAVING, correlated subquery, `RANK()`, running totals) are
 
 ## 10. Vector / NoSQL component
 
-### pgvector (planned for Phase 3, matches the synopsis)
+### pgvector (built: migration `20261103001200_knowledge_base.sql`)
 
 | Question the course asks | Answer |
 |---|---|
-| What becomes an embedding? | CTF challenge descriptions, write-ups, event documents and feedback text, split into chunks of roughly 300–500 tokens |
-| Which model? | `gte-small` / `all-MiniLM-L6-v2` class, 384 dimensions, free (Supabase Edge Functions AI inference or transformers.js). Larger hosted models are a drop-in change of dimension. |
-| How are vectors stored? | `document_chunks.embedding vector(384)`, alongside `organization_id`, `document_id` and `content`, protected by the same RLS as other org data |
+| What becomes an embedding? | Knowledge-base documents (CTF write-ups, guides, event documents, feedback summaries, minutes), split into chunks of about 700 characters on paragraph and sentence boundaries; each chunk is prefixed with its document title |
+| Which model? | `minishlab/potion-base-8M` (Model2Vec, MIT licence): a **static** embedding model distilled from the BGE-base transformer. Every token has a learned 256-number vector; a text's embedding is the mean of its token vectors, normalized to length 1. Runs in pure TypeScript in the Next.js server (no GPU, no native code, ~30 MB, ~0.1 ms per text), downloaded once by `npm run models:download` (pinned revision, SHA-256 checked). Without it the app falls back to lexical hash embeddings (`hash-v1`). |
+| How are vectors stored? | `document_chunks.embedding extensions.vector(256)` with `embedding_model` (vectors from different models are never compared), alongside `organization_id`, `document_id`, `content` and a generated `tsvector` column. Same RLS as other club data. |
 | Similarity metric | Cosine distance (`<=>` operator); similarity = 1 − distance |
-| Retrieval | `WHERE organization_id = $org ORDER BY embedding <=> $query LIMIT 10` using an HNSW index; optionally fused with full-text `ts_rank` results (hybrid search, reciprocal-rank fusion) |
+| Retrieval | `private.search_documents()` (SECURITY INVOKER, so RLS applies): top 40 chunks by cosine distance (HNSW index) and top 40 by `ts_rank_cd` full-text rank (GIN index), merged with a FULL OUTER JOIN and scored by Reciprocal Rank Fusion `1/(60+rank)`; semantic matches below 0.3 similarity are dropped unless the words also match; best chunk per document. |
 
 ### Optional MongoDB (only if the reviewer requires Option 1)
 

@@ -69,3 +69,5 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npx vi
 ## Last verified run
 
 On 2026-11-02 (local, Linux, Node 22): **210 tests passed** across separate runs: 61 unit, 146 database/integration (one worker to limit memory use), and 3 concurrency tests on temporary PostgreSQL 18.6 with the Supabase shim. ESLint, type checking, and the production build passed; HTTP Playwright smoke passed 8/8. No real Supabase credentials were used. Full browser auth/provider flows remain unverified.
+
+On 2026-11-03 (local, Windows, Node 22.21), after the Review-1 prototype: **247 passed, 3 skipped** (concurrency suite, needs `TEST_DATABASE_URL`) across 20 files, including the new `events`, `knowledge-base` and `demo-seed` database suites. ESLint and `tsc` clean, `next build` successful, HTTP Playwright smoke 8/8. The prototype screens were verified manually in a browser in demo mode (sign-in, approve request, register, QR display, scanner check-in and duplicate scan, semantic search, reports, permission-based 404s). Browser automation for these flows is on the [roadmap](ROADMAP.md). Concurrency runs now need Postgres with the `vector` extension.

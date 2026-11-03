@@ -33,7 +33,7 @@ How to use this guide: read sections 1–4 the night before the review. Then wor
 | Reviewer checks | Our evidence | Show this |
 |---|---|---|
 | **Min 5 tables in ER diagram** | 12 tables implemented, about 25 in the full design | [DATABASE.md §2 and §3](DATABASE.md#2-er-diagram-phase-1-implemented) (Mermaid; export a PNG from mermaid.live for slides) |
-| **RDBMS + NoSQL** | PostgreSQL + pgvector (requirements doc **Option 2: SQL + Vector DB**), plus JSONB for semi-structured config | [DATABASE.md §1 and §10](DATABASE.md#1-database-choice-and-justification). ⚠️ Confirm with the instructor that Option 2 satisfies "NoSQL". If not, the MongoDB design for event feedback is ready. |
+| **RDBMS + NoSQL** | PostgreSQL + **pgvector** (requirements doc **Option 2: SQL + Vector DB**), working in the app: Club → Knowledge base. Plus JSONB for semi-structured config | Search "stealing session cookies with javascript": the XSS write-up ranks first by meaning while full-text finds no matching words. [DATABASE.md §10](DATABASE.md#10-vector--nosql-component). ⚠️ Confirm with the instructor that Option 2 satisfies "NoSQL"; the MongoDB fallback design is in the same section. |
 | **Reports in demo** (like "average salary per department") | 4 report views + 11 demo queries: AVG per org, HAVING, correlated subquery, RANK(), running total, RLS demo | `npm run demo:reports`, [demo_reports.sql](../supabase/queries/demo_reports.sql) |
 | **Novelty** | See below | Talk through §3 |
 
@@ -62,12 +62,14 @@ Prepare beforehand: `npm ci`, run `npm test` once (so it's fast), open VS Code w
 
 | Area | Status |
 |---|---|
-| Schema: 12 tables, constraints, indexes, RLS, 10 procedures, 4 views, audit triggers | ✅ Built, tested |
+| Schema: 20 tables (12 foundation + role templates, events, registrations, QR credentials, attendance, documents, vector chunks), constraints, indexes incl. HNSW and GIN, RLS, procedures, 5 report views, audit triggers | ✅ Built, tested |
 | Server layer: verified identity, org access checks, membership services, reports service, error mapping, logging | ✅ Built, tested |
 | Auth plumbing: Supabase SSR clients, session refresh, OAuth callback, email-confirm/recovery route | ✅ Built, unit + smoke tested |
-| Sign-in / sign-up / onboarding / reviewer screens | ⏳ Phase 2 |
-| Events, registrations, QR attendance, food, inventory, volunteers, CTF, certificates | 📐 Designed (DATABASE.md §3), Phase 3 |
-| pgvector semantic search | 📐 Designed (DATABASE.md §10), Phase 3 |
+| Web UI (Review-1 prototype): demo sign-in, dashboard, join flow, review queue, events, QR codes, scanner, knowledge-base search, reports | ✅ Built, verified in the browser ([PROTOTYPE_DEMO.md](PROTOTYPE_DEMO.md)) |
+| Events, registrations with capacity, private QR credentials, exactly-once QR attendance | ✅ Built, tested |
+| pgvector semantic search (hybrid with full-text, static embedding model) | ✅ Built, tested |
+| Supabase sign-in screens, member management UI | ⏳ Next ([ROADMAP.md](ROADMAP.md)) |
+| Food distribution, inventory, volunteers, CTF, certificates, feedback, contribution analytics | 📐 Designed (DATABASE.md §3), remaining |
 | Concurrency tests on real Postgres | ✅ 3 passed on temporary PostgreSQL 18.6 with the Supabase shim (2026-11-02); full Supabase verification still required |
 
 ---
@@ -133,8 +135,8 @@ The course requires at least 4 advanced concepts. We have 8 implemented.
 | **Indexing** | [`membership_requests_queue_idx`](../supabase/migrations/20261024000600_memberships.sql#L51), partial unique index line 46 | Composite index for keyset pagination; partial unique index for "one pending request" |
 | **Row level security** | [0800_rls_and_grants.sql](../supabase/migrations/20261024000800_rls_and_grants.sql) | Tenant isolation in the database |
 | **Constraints incl. composite FKs** | [`membership_roles_membership_fk`](../supabase/migrations/20261024000600_memberships.sql#L118) | Cross-club references are impossible |
-| **Vector similarity search** | 📐 designed | Phase 3 |
-| **Full-text search** | 📐 designed (hybrid with vectors) | Phase 3 |
+| **Vector similarity search** | [`private.search_documents`](../supabase/migrations/20261103001200_knowledge_base.sql), HNSW index on `vector(256)` | Cosine distance (`<=>`) on embeddings from a static model distilled from BGE-base |
+| **Full-text search** | Same function: `tsvector` generated column + GIN index | Fused with vector ranks by Reciprocal Rank Fusion (`1/(60+rank)`) |
 
 ---
 

@@ -103,6 +103,9 @@ A Phase 3 module (events, inventory, …) is accepted only if:
 | Status columns | `text` + `CHECK` instead of ENUM types | Easier to evolve. |
 | Test database | PGlite (Postgres 18 in WASM) with a small Supabase shim | Real Postgres semantics (RLS, triggers, plpgsql) with no Docker. Race tests need a real server (`test/concurrency`). |
 | TypeScript version | 5.9 (from `create-next-app`); **not** 7.x | `typescript-eslint` supports `<6.1`. TS 7 would break linting. |
+| Offline demo mode | `AUTH_MODE=demo`: same app and SQL on a local PGlite database (`.demo-data/`) with signed "sign in as" cookies | Reviews and vivas without Wi-Fi or cloud accounts. Structurally isolated: refuses to start with a `DATABASE_URL` or `APP_ENV=production`. |
+| Embeddings | Static Model2Vec model (256-d) computed in the Next.js server | Real semantic search with no GPU, native code or paid API; ~30 MB, deterministic. |
+| Default roles | `role_templates` table + `private.register_permission()` | New modules add permissions with one call, which also backfills existing clubs. |
 
 ## Open decisions (need your input)
 

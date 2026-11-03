@@ -16,6 +16,15 @@ npm run demo:reports   # prints the report queries on sample data
 
 Everything above works offline after `npm ci`. No Supabase project is needed.
 
+## 1b. Run the app offline (demo mode)
+
+```bash
+npm run models:download   # once: semantic search model (~31 MB, pinned + SHA-256 verified)
+npm run demo              # http://localhost:3000 -> sign in as any demo user
+```
+
+Demo mode stores its database in `.demo-data/` (git-ignored) and seeds two sample clubs on first start. `npm run demo:reset` deletes it. It refuses to start when `DATABASE_URL` is set or `APP_ENV=production`, so demo sign-in can never reach a real database.
+
 ## 2. Create a Supabase project (development)
 
 1. Create a project at supabase.com (or run `npx supabase start` locally).

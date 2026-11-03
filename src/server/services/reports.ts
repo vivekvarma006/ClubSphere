@@ -1,8 +1,9 @@
 import "server-only";
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import type { VerifiedActor } from "@/server/auth/actor";
 import { assertPermission, loadOrgAccess } from "@/server/authz/org-access";
 import {
+  reportEventAttendance,
   reportMonthlyApplications,
   reportOrgMembershipSummary,
   reportReviewTurnaround,
@@ -14,9 +15,10 @@ import { handleServiceError } from "@/server/errors";
 import { OrganizationSlug } from "@/server/validation/inputs";
 
 /**
- * Organization membership reports, read from the security_invoker views in
- * 20261024000900_reports.sql. Requires analytics.read; RLS additionally
- * limits the underlying rows to the caller's organization.
+ * Organization reports (membership and event attendance), read from the
+ * security_invoker views in 20261024000900_reports.sql and
+ * 20261103001100_events_and_attendance.sql. Requires analytics.read; RLS
+ * additionally limits the underlying rows to the caller's organization.
  */
 export async function getMembershipReports(db: Database, actor: VerifiedActor, organizationSlug: string) {
   try {
@@ -45,7 +47,14 @@ export async function getMembershipReports(db: Database, actor: VerifiedActor, o
         .where(eq(reportMonthlyApplications.organizationId, orgId))
         .orderBy(asc(reportMonthlyApplications.month));
 
-      return { organization: access.organization, summary: summary ?? null, turnaround: turnaround ?? null, roles, monthly };
+      const events = await tx
+        .select()
+        .from(reportEventAttendance)
+        .where(eq(reportEventAttendance.organizationId, orgId))
+        .orderBy(desc(reportEventAttendance.startsAt))
+        .limit(20);
+
+      return { organization: access.organization, summary: summary ?? null, turnaround: turnaround ?? null, roles, monthly, events };
     });
   } catch (error) {
     throw handleServiceError("reports.membership", error);

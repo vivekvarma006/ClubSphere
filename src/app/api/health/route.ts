@@ -17,7 +17,8 @@ export async function GET() {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
-      getDb().execute(sql`select 1`),
+      // Inside the deadline: in demo mode the first getDb() also migrates and seeds.
+      (async () => (await getDb()).execute(sql`select 1`))(),
       new Promise((_, reject) => {
         timeout = setTimeout(() => reject(new Error("timeout")), DB_TIMEOUT_MS);
       }),

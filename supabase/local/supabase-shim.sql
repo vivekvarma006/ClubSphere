@@ -1,5 +1,6 @@
 -- Minimal stand-in for the parts of a Supabase database that ClubSphere's
--- migrations rely on, so they can be tested on PGlite without Docker.
+-- migrations rely on, so they can run on PGlite (tests and the offline demo
+-- mode) without Docker.
 --
 -- Mirrors Supabase behaviour that matters for security tests:
 --   * API roles anon / authenticated / service_role (service_role bypasses RLS)

@@ -1,5 +1,6 @@
 -- =============================================================================
--- Rollback for migrations 20261024000100 .. 20261024000900 (Phase 1 foundation)
+-- Rollback for migrations 20261024000100 .. 20261024000900 (foundation).
+-- Run the later *_down.sql files first, newest to oldest.
 --
 -- DESTROYS ALL CLUBSPHERE DATA. Intended for development databases and for
 -- the reversibility test (test/db/migrations.test.ts). Production recovery

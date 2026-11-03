@@ -279,7 +279,7 @@ describe("platform administration", () => {
     expect(err.code).toBe("CS403");
   });
 
-  it("a new organization needs no code changes and starts with owner/officer/member roles", async () => {
+  it("a new organization needs no code changes and starts with the template roles", async () => {
     const orgId = await asUser(db, w.platformAdmin, (tx) =>
       scalar<string>(tx, "select private.create_organization('gamma-guild', 'Gamma Guild', $1) as v", [w.applicant]),
     );
@@ -291,6 +291,7 @@ describe("platform administration", () => {
       { role_key: "member", is_default: true },
       { role_key: "officer", is_default: false },
       { role_key: "owner", is_default: false },
+      { role_key: "volunteer", is_default: false },
     ]);
     const perms = await asUser(db, w.applicant, (tx) =>
       scalar<string[]>(tx, "select private.my_org_permissions($1) as v", [orgId]),

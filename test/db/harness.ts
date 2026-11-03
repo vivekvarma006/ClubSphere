@@ -1,32 +1,19 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { PGlite, type Transaction } from "@electric-sql/pglite";
+import type { PGlite, Transaction } from "@electric-sql/pglite";
+import { applyMigrations, applySupabaseShim, openLocalPostgres } from "@/server/db/local-postgres";
 
-const ROOT = path.resolve(import.meta.dirname, "../..");
-export const MIGRATIONS_DIR = path.join(ROOT, "supabase", "migrations");
-export const ROLLBACK_FILE = path.join(ROOT, "supabase", "rollback", "20261024_foundation_down.sql");
-const SHIM_FILE = path.join(import.meta.dirname, "supabase-shim.sql");
+export { applyMigrations, listMigrations, MIGRATIONS_DIR } from "@/server/db/local-postgres";
+export const ROLLBACK_DIR = path.join(process.cwd(), "supabase", "rollback");
 
-export async function listMigrations(): Promise<string[]> {
-  const files = await readdir(MIGRATIONS_DIR);
-  return files.filter((f) => f.endsWith(".sql")).sort();
-}
-
-/** Applies every migration in filename order. Each file runs as one implicit transaction. */
-export async function applyMigrations(db: PGlite): Promise<void> {
-  for (const file of await listMigrations()) {
-    const sql = await readFile(path.join(MIGRATIONS_DIR, file), "utf8");
-    try {
-      await db.exec(sql);
-    } catch (error) {
-      throw new Error(`migration ${file} failed: ${(error as Error).message}`, { cause: error });
-    }
-  }
+/** Down scripts, newest first: the order to undo migrations in. */
+export async function listRollbacks(): Promise<string[]> {
+  return (await readdir(ROLLBACK_DIR)).filter((f) => f.endsWith("_down.sql")).sort().reverse();
 }
 
 export async function createMigratedDb(): Promise<PGlite> {
-  const db = await PGlite.create();
-  await db.exec(await readFile(SHIM_FILE, "utf8"));
+  const db = await openLocalPostgres();
+  await applySupabaseShim(db);
   await applyMigrations(db);
   return db;
 }

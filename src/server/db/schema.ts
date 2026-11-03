@@ -9,7 +9,9 @@
 import {
   bigint,
   boolean,
+  customType,
   date,
+  integer,
   jsonb,
   numeric,
   pgTable,
@@ -19,6 +21,7 @@ import {
   text,
   timestamp,
   uuid,
+  vector,
 } from "drizzle-orm/pg-core";
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
@@ -28,6 +31,14 @@ export type MembershipStatus = "active" | "suspended";
 export type OrganizationStatus = "active" | "suspended" | "archived";
 export type OnboardingPolicy = "approval_required" | "invite_only" | "closed";
 export type ProfileFieldType = "text" | "long_text" | "number" | "select" | "url";
+export type EventCategory = "workshop" | "hackathon" | "ctf" | "talk" | "competition" | "social" | "recruitment" | "other";
+export type EventStatus = "draft" | "published" | "completed" | "cancelled";
+export type RegistrationStatus = "registered" | "cancelled";
+export type DocumentSourceType = "event_doc" | "guide" | "writeup" | "feedback" | "minutes";
+export type DocumentVisibility = "members" | "officers";
+
+/** Generated full-text column; read-only from the application. */
+const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(),
@@ -159,6 +170,96 @@ export const auditLogs = pgTable("audit_logs", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull(),
 });
 
+export const roleTemplates = pgTable("role_templates", {
+  roleKey: text("role_key").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  isDefault: boolean("is_default").notNull(),
+  grantsAll: boolean("grants_all").notNull(),
+  position: smallint("position").notNull(),
+});
+
+export const roleTemplatePermissions = pgTable(
+  "role_template_permissions",
+  {
+    roleKey: text("role_key").notNull(),
+    permissionKey: text("permission_key").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.roleKey, t.permissionKey] })],
+);
+
+// ---------------------------------------------------------------------------
+// Events and attendance (20261103001100_events_and_attendance.sql)
+// ---------------------------------------------------------------------------
+
+export const events = pgTable("events", {
+  id: uuid("id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: text("category").$type<EventCategory>().notNull(),
+  venue: text("venue"),
+  startsAt: timestamptz("starts_at").notNull(),
+  endsAt: timestamptz("ends_at").notNull(),
+  capacity: integer("capacity"),
+  status: text("status").$type<EventStatus>().notNull(),
+  createdBy: uuid("created_by"),
+  createdAt: timestamptz("created_at").notNull(),
+  updatedAt: timestamptz("updated_at").notNull(),
+});
+
+export const eventRegistrations = pgTable("event_registrations", {
+  id: uuid("id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  status: text("status").$type<RegistrationStatus>().notNull(),
+  registeredAt: timestamptz("registered_at").notNull(),
+  cancelledAt: timestamptz("cancelled_at"),
+});
+
+export const registrationCredentials = pgTable("registration_credentials", {
+  registrationId: uuid("registration_id").primaryKey(),
+  token: text("token").notNull(),
+  issuedAt: timestamptz("issued_at").notNull(),
+});
+
+export const eventAttendance = pgTable("event_attendance", {
+  registrationId: uuid("registration_id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  checkedInAt: timestamptz("checked_in_at").notNull(),
+  checkedInBy: uuid("checked_in_by"),
+});
+
+// ---------------------------------------------------------------------------
+// Knowledge base (20261103001200_knowledge_base.sql)
+// ---------------------------------------------------------------------------
+
+export const documents = pgTable("documents", {
+  id: uuid("id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  title: text("title").notNull(),
+  sourceType: text("source_type").$type<DocumentSourceType>().notNull(),
+  eventId: uuid("event_id"),
+  body: text("body").notNull(),
+  visibility: text("visibility").$type<DocumentVisibility>().notNull(),
+  createdBy: uuid("created_by"),
+  createdAt: timestamptz("created_at").notNull(),
+  updatedAt: timestamptz("updated_at").notNull(),
+});
+
+export const documentChunks = pgTable("document_chunks", {
+  id: bigint("id", { mode: "number" }).primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  documentId: uuid("document_id").notNull(),
+  chunkIndex: integer("chunk_index").notNull(),
+  content: text("content").notNull(),
+  embedding: vector("embedding", { dimensions: 256 }).notNull(),
+  embeddingModel: text("embedding_model").notNull(),
+  fts: tsvector("fts"),
+});
+
 // ---------------------------------------------------------------------------
 // Report views (security_invoker; defined in 20261024000900_reports.sql)
 // ---------------------------------------------------------------------------
@@ -198,4 +299,18 @@ export const reportMonthlyApplications = pgView("report_monthly_applications", {
   approved: bigint("approved", { mode: "number" }).notNull(),
   rejected: bigint("rejected", { mode: "number" }).notNull(),
   stillPending: bigint("still_pending", { mode: "number" }).notNull(),
+}).existing();
+
+export const reportEventAttendance = pgView("report_event_attendance", {
+  organizationId: uuid("organization_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  title: text("title").notNull(),
+  category: text("category").$type<EventCategory>().notNull(),
+  startsAt: timestamptz("starts_at").notNull(),
+  status: text("status").$type<EventStatus>().notNull(),
+  capacity: integer("capacity"),
+  registered: bigint("registered", { mode: "number" }).notNull(),
+  attended: bigint("attended", { mode: "number" }).notNull(),
+  attendanceRatePct: numeric("attendance_rate_pct"),
+  fillRatePct: numeric("fill_rate_pct"),
 }).existing();

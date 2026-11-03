@@ -62,6 +62,7 @@ describe("report_role_distribution", () => {
       { role_key: "member", active_members: 6 },
       { role_key: "officer", active_members: 2 },
       { role_key: "owner", active_members: 1 },
+      { role_key: "volunteer", active_members: 0 },
     ]);
   });
 });

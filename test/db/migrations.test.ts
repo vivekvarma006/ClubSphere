@@ -1,11 +1,17 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import type { PGlite } from "@electric-sql/pglite";
 import { beforeAll, describe, expect, it } from "vitest";
 import { PERMISSIONS } from "@/server/authz/permissions";
-import { ROLLBACK_FILE, applyMigrations, freshDb } from "./harness";
+import { ROLLBACK_DIR, applyMigrations, freshDb, listRollbacks } from "./harness";
 
 const EXPECTED_TABLES = [
   "audit_logs",
+  "document_chunks",
+  "documents",
+  "event_attendance",
+  "event_registrations",
+  "events",
   "membership_requests",
   "membership_roles",
   "organization_email_domains",
@@ -16,7 +22,10 @@ const EXPECTED_TABLES = [
   "permissions",
   "platform_admins",
   "profiles",
+  "registration_credentials",
   "role_permissions",
+  "role_template_permissions",
+  "role_templates",
 ];
 
 // Functions an API user may call. Anything else in `private` (trigger
@@ -25,16 +34,24 @@ const AUTHENTICATED_EXECUTABLE = [
   "approve_membership_request",
   "assign_role",
   "can_view_profile",
+  "cancel_registration",
+  "check_in",
+  "check_in_registration",
   "create_organization",
+  "delete_document",
+  "event_registration_counts",
   "has_org_permission",
   "is_active_member",
   "is_owner_role",
   "is_platform_admin",
   "my_org_permissions",
+  "register_for_event",
   "reinstate_membership",
   "reject_membership_request",
   "request_membership",
   "revoke_role",
+  "save_document",
+  "search_documents",
   "set_organization_status",
   "suspend_membership",
   "withdraw_membership_request",
@@ -117,10 +134,12 @@ describe("migrations on a clean database", () => {
   });
 });
 
-describe("rollback script", () => {
-  it("removes the foundation and the migrations re-apply cleanly afterwards", async () => {
+describe("rollback scripts", () => {
+  it("undo every migration (newest first) and the migrations re-apply cleanly afterwards", async () => {
     const db = await freshDb();
-    await db.exec(await readFile(ROLLBACK_FILE, "utf8"));
+    for (const file of await listRollbacks()) {
+      await db.exec(await readFile(path.join(ROLLBACK_DIR, file), "utf8"));
+    }
 
     expect(await publicTables(db)).toEqual([]);
     const { rows } = await db.query("select 1 from pg_namespace where nspname = 'private'");

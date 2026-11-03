@@ -140,7 +140,7 @@ describe("getMembershipReports", () => {
     const reports = await getMembershipReports(db, as(w.officerA), "alpha-society");
     expect(reports.summary).toMatchObject({ activeMembers: 7, pendingRequests: 2, approvalRatePct: "85.7" });
     expect(reports.turnaround).toMatchObject({ reviewedRequests: 7, avgHoursToReview: "12.00" });
-    expect(reports.roles.map((r) => r.roleKey)).toEqual(["member", "officer", "owner"]);
+    expect(reports.roles.map((r) => r.roleKey)).toEqual(["member", "officer", "owner", "volunteer"]);
   });
 
   it("is forbidden without analytics.read", async () => {

@@ -109,6 +109,8 @@ export interface Registrant {
 export interface EventDetail {
   event: typeof events.$inferSelect;
   ended: boolean;
+  waitlistOpen: boolean;
+  waitlist: { status: string; position: number | null } | null;
   registered: number;
   canManage: boolean;
   canCheckIn: boolean;
@@ -154,6 +156,10 @@ export async function getEvent(
         z.object({ registered: z.number() }),
       );
 
+      const [waitlist] = await queryRows(tx,
+        sql`select status, queue_position as position from private.my_event_waitlist(${id}::uuid)`,
+        z.object({ status: z.string(), position: z.number().nullable() }));
+
       const registrants =
         canManage || canCheckIn
           ? await tx
@@ -174,11 +180,13 @@ export async function getEvent(
       return {
         event,
         ended: event.endsAt.getTime() < Date.now(),
+        waitlistOpen: event.startsAt.getTime() > Date.now(),
         registered: count?.registered ?? 0,
         canManage,
         canCheckIn,
         mine: mine ? { ...mine, token: mine.status === "registered" ? mine.token : null } : null,
         registrants,
+        waitlist: waitlist ?? null,
       };
     });
   });
@@ -368,6 +376,9 @@ export async function listMyUpcomingEvents(db: Database, actor: VerifiedActor): 
             eq(eventRegistrations.userId, actor.userId),
             eq(eventRegistrations.status, "registered"),
             gte(events.endsAt, new Date()),
+            eq(events.status, "published"),
+            eq(organizations.status, "active"),
+            sql`private.is_active_member(${events.organizationId})`,
           ),
         )
         .orderBy(asc(events.startsAt))
@@ -375,4 +386,21 @@ export async function listMyUpcomingEvents(db: Database, actor: VerifiedActor): 
       return rows.map(({ checkedInAt, ...r }) => ({ ...r, checkedIn: checkedInAt !== null }));
     }),
   );
+}
+
+/** Resolve both slug and event under RLS before calling the queue procedures. */
+export async function changeEventWaitlist(db: Database, actor: VerifiedActor,
+  input: z.input<typeof EventRef> & { operation: "join" | "leave" }): Promise<void> {
+  return run("events.waitlist", async () => {
+    const { organizationSlug, eventId, operation } = EventRef.extend({ operation: z.enum(["join", "leave"]) }).parse(input);
+    await withUserContext(db, actor, async tx => {
+      const access = await loadOrgAccess(tx, organizationSlug);
+      const [event] = await tx.select({ id: events.id }).from(events)
+        .where(and(eq(events.id, eventId), eq(events.organizationId, access.organization.id)));
+      if (!event) throw new AppError("NOT_FOUND", "Event not found.");
+      await tx.execute(operation === "join"
+        ? sql`select private.join_event_waitlist(${eventId}::uuid)`
+        : sql`select private.leave_event_waitlist(${eventId}::uuid)`);
+    });
+  });
 }

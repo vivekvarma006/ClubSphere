@@ -61,6 +61,16 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         </p>
       </div>
 
+      <Card className="mb-6">
+        <CardTitle>Try the new workflows</CardTitle>
+        <ul className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <li><strong>Ananya Rao:</strong> My Activity shows an assigned task, a certificate and waitlist position #1.</li>
+          <li><strong>Vikram Singh:</strong> cancel your registration for Security Lab: Waitlist Demo to promote Ananya.</li>
+          <li><strong>Rohan Gupta:</strong> see both clubs, a robotics task and an already-promoted registration with a private QR.</li>
+          <li><strong>Sneha Iyer:</strong> open Cyber Security Club → Reports for the visual dashboard.</li>
+        </ul>
+      </Card>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {personas.map((p) => (
           <form key={p.userId} action={signInAsDemoUser}>

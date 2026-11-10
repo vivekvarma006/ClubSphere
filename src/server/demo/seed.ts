@@ -3,6 +3,7 @@ import type { PGlite, Transaction } from "@electric-sql/pglite";
 import { chunkDocument } from "@/server/search/chunking";
 import { getEmbedder } from "@/server/search/embeddings";
 import { DEMO_DOCUMENTS } from "./seed-documents";
+import { ensureDemoShowcase } from "./showcase";
 
 /**
  * Demo data: two fictional clubs with members, officers, applicants, events
@@ -321,4 +322,5 @@ export async function seedDemoData(pg: PGlite): Promise<void> {
       ]),
     );
   }
+  await ensureDemoShowcase(pg);
 }

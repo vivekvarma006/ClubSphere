@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Test runners create/remove these while other checks may be running.
+    "test-results/**",
+    "playwright-report/**",
+    "blob-report/**",
+    "coverage/**",
   ]),
 ]);
 

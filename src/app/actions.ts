@@ -17,6 +17,7 @@ import {
   checkInByToken,
   checkInRegistration,
   cancelRegistration,
+  changeEventWaitlist,
   createEvent,
   registerForEvent,
   setEventStatus,
@@ -135,6 +136,7 @@ export async function reviewRequest(
 export async function registerForEventAction(slug: string, eventId: string): Promise<ActionState> {
   return act(async ({ actor, db }) => {
     await registerForEvent(db, actor, { organizationSlug: slug, eventId });
+    revalidatePath("/dashboard");
     return "You're registered. Your QR code is below.";
   }, `/o/${slug}`);
 }
@@ -142,7 +144,16 @@ export async function registerForEventAction(slug: string, eventId: string): Pro
 export async function cancelRegistrationAction(slug: string, registrationId: string): Promise<ActionState> {
   return act(async ({ actor, db }) => {
     await cancelRegistration(db, actor, registrationId);
+    revalidatePath("/dashboard");
     return "Registration cancelled.";
+  }, `/o/${slug}`);
+}
+
+export async function changeWaitlistAction(slug: string, eventId: string, operation: "join" | "leave"): Promise<ActionState> {
+  return act(async ({ actor, db }) => {
+    await changeEventWaitlist(db, actor, { organizationSlug: slug, eventId, operation });
+    revalidatePath("/dashboard");
+    return operation === "join" ? "You're on the waitlist. A place will be assigned automatically when available." : "You left the waitlist.";
   }, `/o/${slug}`);
 }
 

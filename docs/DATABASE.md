@@ -26,7 +26,7 @@ The course asks for a choice justified by the shape of the data, not technology 
 | Per-club configuration (branding, feature switches), membership application answers whose questions differ per club | **PostgreSQL JSONB** columns | The shape varies by organization. JSONB keeps it flexible while the database still guarantees "is a JSON object", the procedure `private.validate_profile_answers` checks answers against the club's field definitions, and Zod schemas type it in the app. |
 | CTF challenge descriptions, write-ups, event documentation, feedback text (built: `documents`, `document_chunks`) | **pgvector** (vector columns in PostgreSQL) | Users need to search by *meaning* ("SQL injection walkthrough" should find a write-up titled "Bypassing a login form"). Keeping vectors next to the relational rows means the same RLS isolation, transactions and joins apply to search, with no second database to keep in sync. |
 
-**Course option used: Option 2 (SQL + vector database)**, matching the approved synopsis. See [§10](#10-vector--nosql-component) for an optional MongoDB component if reviewers require Option 1 (SQL + NoSQL). That is an open decision.
+**Current design: PostgreSQL (RDBMS) + Redis (NoSQL key-value database), with pgvector inside PostgreSQL for search.** Redis stores disposable contribution-report snapshots for 30 seconds. PostgreSQL JSONB and pgvector are PostgreSQL features; neither is presented as a separate NoSQL database. See [§10](#10-vector--nosql-component) and [the walkthrough](DATABASE_WALKTHROUGH.md).
 
 ---
 
@@ -350,9 +350,11 @@ Further demo queries (HAVING, correlated subquery, `RANK()`, running totals) are
 | Similarity metric | Cosine distance (`<=>` operator); similarity = 1 − distance |
 | Retrieval | `private.search_documents()` (SECURITY INVOKER, so RLS applies): top 40 chunks by cosine distance (HNSW index) and top 40 by `ts_rank_cd` full-text rank (GIN index), merged with a FULL OUTER JOIN and scored by Reciprocal Rank Fusion `1/(60+rank)`; semantic matches below 0.3 similarity are dropped unless the words also match; best chunk per document. |
 
-### Optional MongoDB (only if the reviewer requires Option 1)
+### Redis (implemented NoSQL component)
 
-The best fit is **event feedback forms**, where every event defines different questions (ratings, multiple choice, free text, nested sections). Each response is a self-contained document, and reports use the **aggregation pipeline** (`$match` → `$unwind` → `$group`). The trade-offs to state honestly: tenant isolation has to be re-implemented in the app layer (no RLS), and there are no cross-database transactions, so writes would go through an outbox. Core club data stays in PostgreSQL either way.
+`src/server/cache/reports.ts` stores a validated JSON snapshot under a tenant/user/permissions/settings-scoped key with `SET ... EX 30`. `getContributionReport` checks live PostgreSQL permissions and the analytics switch before **every** cache read. A cache miss calls `private.contribution_report(uuid)` and caches the result outside the SQL transaction. Cache failure falls back to PostgreSQL. Configure `REDIS_URL` to activate the second database; without it, reports still work but the application is only using PostgreSQL.
+
+This is a read-heavy, recomputable projection, so bounded staleness is acceptable. Membership, stock, attendance, roles and audit records remain transactional SQL data. Redis does not make authorization decisions. Use an environment-specific `REDIS_KEY_PREFIX` and authenticated TLS Redis in hosted environments. See [setup and demo commands](DATABASE_WALKTHROUGH.md).
 
 ---
 
@@ -361,3 +363,12 @@ The best fit is **event feedback forms**, where every event defines different qu
 - Migrations are plain SQL files in Supabase CLI format, applied in filename order. Each runs as one transaction: all of it or none.
 - **Forward-only in production.** Mistakes are fixed with a new migration. Before applying a migration to production, take a backup (Supabase PITR on paid plans, or `supabase db dump`).
 - [`supabase/rollback/20261024_foundation_down.sql`](../supabase/rollback/20261024_foundation_down.sql) removes the whole Phase 1 foundation for development resets. A test runs *up → down → up* to prove the migrations are reversible and re-runnable on a clean database.
+
+
+## 12. Event waitlists (2026-11-09)
+
+Migration `20261109000100_event_waitlists.sql` adds `event_waitlist` with tenant-consistent event references, one entry per event/user, an identity sequence for FIFO ordering, RLS and audit triggers. Members read their own entries; event managers can read their club's queue. Writes are limited to authorized procedures. `my_event_waitlist` reveals only the caller's status and position, without exposing other members.
+
+Registration, cancellation, queue joins/leaves and capacity changes serialize on the event row. Cancellation locks the event before its registration row. The internal `promote_event_waitlist` routine fills available places for active memberships, reuses cancelled registrations when needed, and uses the existing private QR credential machinery. Known ineligible memberships are recorded explicitly; unexpected errors roll back the entire operation. Capacity cannot be reduced below existing registrations. Cancelled/completed events close waiting entries, and promotion stops at event start.
+
+Personal activity reads use the authenticated user context and explicit user predicates even for managers with broader RLS visibility. Disabled task/certificate modules and suspended memberships/clubs are excluded. Report visuals reuse the existing security-invoker views, without another database or chart dependency.

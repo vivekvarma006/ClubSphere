@@ -1,5 +1,6 @@
 import {
   cancelRegistrationAction,
+  changeWaitlistAction,
   manualCheckInAction,
   registerForEventAction,
   setEventStatusAction,
@@ -16,7 +17,7 @@ export default async function EventPage({ params }: PageProps<"/o/[slug]/events/
   const { slug, eventId } = await params;
   const { actor, db } = await pageContext();
   const detail = await load(getEvent(db, actor, slug, eventId));
-  const { event, mine, ended } = detail;
+  const { event, mine, ended, waitlistOpen } = detail;
   const full = event.capacity !== null && detail.registered >= event.capacity;
   const qr = mine?.token ? await qrSvg(mine.token) : null;
 
@@ -55,6 +56,7 @@ export default async function EventPage({ params }: PageProps<"/o/[slug]/events/
           <CardTitle>Your registration</CardTitle>
           {mine?.status === "registered" ? (
             <div className="space-y-3">
+              {detail.waitlist?.status === "promoted" ? <Badge tone="green">Your waitlist place became a registration</Badge> : null}
               {mine.checkedInAt ? (
                 <Badge tone="green">Checked in {formatDateTime(mine.checkedInAt)}</Badge>
               ) : (
@@ -83,9 +85,22 @@ export default async function EventPage({ params }: PageProps<"/o/[slug]/events/
                 </ActionForm>
               ) : null}
             </div>
+          ) : detail.waitlist?.status === "waiting" && waitlistOpen ? (
+            <div className="space-y-3">
+              <Badge tone="amber">Waitlist position #{detail.waitlist.position}</Badge>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">When a place opens, you will be registered automatically. Your QR code will appear here.</p>
+              <ActionForm action={changeWaitlistAction.bind(null, slug, event.id, "leave")}>
+                <SubmitButton variant="secondary" pendingLabel="Leaving...">Leave waitlist</SubmitButton>
+              </ActionForm>
+            </div>
           ) : event.status === "published" && !ended ? (
             full ? (
-              <p className="text-sm text-zinc-600">This event is full.</p>
+              <div className="space-y-3">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">This event is full.</p>
+                {waitlistOpen ? <ActionForm action={changeWaitlistAction.bind(null, slug, event.id, "join")}>
+                  <SubmitButton pendingLabel="Joining...">Join waitlist</SubmitButton>
+                </ActionForm> : null}
+              </div>
             ) : (
               <ActionForm action={registerForEventAction.bind(null, slug, event.id)}>
                 <SubmitButton pendingLabel="Registering...">Register</SubmitButton>

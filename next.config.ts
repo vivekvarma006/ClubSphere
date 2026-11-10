@@ -29,6 +29,15 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // Keep the supported webpack build path styled too. The same Tailwind
+  // loader implements webpack's loader API; no second CSS pipeline is needed.
+  webpack(config) {
+    config.module.rules.push({
+      test: /globals\.css$/,
+      use: ["@tailwindcss/turbopack"],
+    });
+    return config;
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

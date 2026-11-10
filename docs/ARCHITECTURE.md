@@ -1,6 +1,6 @@
 # Architecture
 
-ClubSphere is a **modular monolith**: one Next.js application and one PostgreSQL database serve every organization. Organization isolation is enforced by the database schema and by every server operation, not by running separate copies per club.
+ClubSphere is a **modular monolith**: one Next.js application and one authoritative PostgreSQL database serve every organization, with a separate Redis-compatible store for disposable contribution-report snapshots. Organization isolation is enforced by the database schema and by every server operation, not by running separate copies per club.
 
 ## Principles
 
@@ -8,7 +8,7 @@ ClubSphere is a **modular monolith**: one Next.js application and one PostgreSQL
 2. **Identity ≠ membership ≠ authority.** Signing in proves who you are. Membership in a club requires a reviewed request. Authority inside a club comes from that club's roles. Platform administration is a separate table that grants nothing inside clubs.
 3. **Defense in depth.** The application checks permissions for clear errors. The database checks again (procedures + RLS + constraints) so a bug in one layer is not a breach.
 4. **The database owns invariants.** Uniqueness, tenant consistency, state transitions and auditing are constraints and triggers, so they hold for every code path, including manual SQL.
-5. **Boring infrastructure.** Next.js + Supabase (Auth + Postgres). No Redis, queues or microservices until a measured need appears.
+5. **Limited infrastructure.** Next.js + Supabase (Auth + Postgres), with Redis for recomputable report snapshots. Redis is the explicit SQL + NoSQL design choice added on 2026-11-05; its benefit at production load has not been benchmarked. No queues or microservices are required.
 
 ## Layers
 
@@ -22,6 +22,7 @@ flowchart TB
     A --> D
     D -->|SET LOCAL ROLE authenticated<br/>request.jwt.claims = verified user| PG[(PostgreSQL<br/>RLS + procedures + triggers)]
     R -.->|getClaims: verify JWT| AUTH[Supabase Auth]
+    S -.->|Contribution reports only; live SQL authorization first| CACHE[(Redis-compatible cache<br/>30-second snapshots)]
 ```
 
 | Layer | Location | Responsibility |
@@ -109,7 +110,7 @@ A Phase 3 module (events, inventory, …) is accepted only if:
 
 ## Open decisions (need your input)
 
-1. **SQL + vector (pgvector) or SQL + NoSQL (MongoDB)?** The synopsis and requirements (Option 2) support pgvector. Your review checklist says "RDBMS + NoSQL". Confirm with the instructor; the MongoDB fallback design is in [DATABASE.md §10](DATABASE.md#10-vector--nosql-component).
+1. **Database choice resolved (2026-11-05):** PostgreSQL + Redis for SQL + NoSQL, with pgvector retained for knowledge search. Redis caches contribution-report snapshots; see [the walkthrough](DATABASE_WALKTHROUGH.md).
 2. **Hosting.** Vercel (Next.js) + Supabase is assumed (see [DEPLOYMENT.md](DEPLOYMENT.md)).
 3. **Who is the first platform admin**, and the first club's slug, name, email-domain rule and profile questions. These are entered with `supabase/bootstrap/…sql`, not code.
 4. **Invite-only onboarding.** The policy value exists and currently *blocks* requests. The invitation flow itself is not built.
@@ -133,7 +134,7 @@ Load profile assumed for sizing: 10 organizations × 2,000 members, peak 300 che
 - **Errors**: users see `AppError.publicMessage` only, never database messages, stack traces or SQL.
 - **Transactions** are short: no network calls inside `withUserContext`.
 - **Pooling**: Supabase transaction pooler (port 6543), `prepare: false`, small per-instance pool (`DATABASE_POOL_MAX`).
-- **Caching**: none of authorization-dependent data. With Cache Components enabled, nothing is cached unless explicitly marked `use cache`.
+- **Caching**: contribution-report snapshots are cached in Redis for 30 seconds. Live PostgreSQL authorization and module checks precede every lookup; keys include organization, user, effective permissions and club settings. Other reports read SQL directly. Network cache operations run outside SQL transactions, and Redis failures fall back to SQL. Next.js Cache Components are not enabled.
 
 
 ## Product modules (2026-11-03)

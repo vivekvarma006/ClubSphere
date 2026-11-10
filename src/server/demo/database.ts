@@ -9,6 +9,7 @@ import type { Database } from "@/server/db/types";
 import { serverEnv } from "@/server/env";
 import { log } from "@/server/log";
 import { seedDemoData } from "./seed";
+import { ensureDemoShowcase } from "./showcase";
 
 /**
  * Demo mode's database: a PGlite data directory under DEMO_DATA_DIR. On
@@ -21,7 +22,10 @@ interface DemoRuntime {
   db: Database;
 }
 
-const globalForDemo = globalThis as typeof globalThis & { __clubsphereDemo?: Promise<DemoRuntime> };
+const globalForDemo = globalThis as typeof globalThis & {
+  __clubsphereDemo?: Promise<DemoRuntime>;
+  __clubsphereDemoShowcase20261109?: Promise<void>;
+};
 
 async function start(): Promise<DemoRuntime> {
   const env = serverEnv();
@@ -50,7 +54,15 @@ function runtime(): Promise<DemoRuntime> {
     globalForDemo.__clubsphereDemo = undefined; // allow a retry after fixing the cause
     throw error;
   });
-  return globalForDemo.__clubsphereDemo;
+  return globalForDemo.__clubsphereDemo.then(async runtime => {
+    // Also upgrade a runtime retained across development hot reloads.
+    globalForDemo.__clubsphereDemoShowcase20261109 ??= ensureDemoShowcase(runtime.pg).catch((error: unknown) => {
+      globalForDemo.__clubsphereDemoShowcase20261109 = undefined;
+      throw error;
+    });
+    await globalForDemo.__clubsphereDemoShowcase20261109;
+    return runtime;
+  });
 }
 
 export async function getDemoDatabase(): Promise<Database> {

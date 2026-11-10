@@ -218,6 +218,16 @@ export const eventRegistrations = pgTable("event_registrations", {
   cancelledAt: timestamptz("cancelled_at"),
 });
 
+export const eventWaitlist = pgTable("event_waitlist", {
+  id: uuid("id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  queueNumber: bigint("queue_number", { mode: "number" }).notNull(),
+  status: text("status").notNull(),
+  joinedAt: timestamptz("joined_at").notNull(),
+});
+
 export const registrationCredentials = pgTable("registration_credentials", {
   registrationId: uuid("registration_id").primaryKey(),
   token: text("token").notNull(),

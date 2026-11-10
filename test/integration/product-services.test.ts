@@ -24,6 +24,7 @@ import {
 } from "@/server/services/operations";
 import { checkInByToken } from "@/server/services/events";
 import { verifyCertificate } from "@/server/services/certificates";
+import { getContributionReport } from "@/server/services/contribution-report";
 import { freshWorld, membershipId, type World } from "../db/fixtures";
 import { asUser, scalar } from "../db/harness";
 let pg: PGlite, db: Database, w: World, event: string, token: string;
@@ -137,6 +138,9 @@ it("runs stock, scanner, tasks, CTF, feedback, certificates and contributions th
       (r) => r.userId === w.memberA,
     ),
   ).toMatchObject({ score: 85, rank: 1 });
+  const report = await getContributionReport(db, manager, slug);
+  expect(report.summary).toMatchObject({ contributors: 1, attendance: 1, tasks: 1, ctfPoints: 50, certificates: 1 });
+  expect(report.members.find((r) => r.userId === w.memberA)).toMatchObject({ score: 85, rank: 1 });
 });
 it("counts failed scans in the durable service request budget", async () => {
   for (let i = 0; i < 120; i++)

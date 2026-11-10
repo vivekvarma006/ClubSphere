@@ -85,3 +85,38 @@ On 2026-11-03 (local, Windows, Node 22.21), after the Review-1 prototype: **247 
 PGlite workers are capped at two to bound WASM memory in CI. Browser tests use hash embeddings so they need no model download. Physical-camera behavior and live Supabase provider/email delivery remain separate environment-dependent checks.
 
 Release-source verification on 2026-11-03 (Linux, Node 22.22.2): **299 Vitest tests passed; 4 real-Postgres tests skipped** without `TEST_DATABASE_URL`. **7/7 Chromium demo flows** and **9/9 HTTP smoke checks** passed. ESLint, TypeScript, production build and lockfile clean-install dry-run passed. Mobile layout at 390 px was checked for overflow and visually inspected. Supabase provider/email delivery, physical-camera capture and multi-connection Postgres verification remain environment-dependent.
+
+## Thorough local verification (2026-11-05)
+
+**310/310 Vitest cases passed across 28 files, zero skipped**, with
+`TEST_DATABASE_URL` pointing to an isolated PostgreSQL 18.6 database with pgvector
+and the Supabase shim, and `TEST_REDIS_URL` pointing to local Valkey. This includes
+all four real multi-connection race tests, three live Redis cases, and a service
+test using the installed Model2Vec model and pgvector.
+
+**16/16 Chromium demo workflows and 9/9 HTTP smoke checks passed.** The expanded
+browser suite covers platform administration, new-account onboarding through
+approval/withdrawal, successful QR check-in/replay, owner/officer/volunteer/member
+access across 15 club routes per role, cross-club denial, forged sessions and
+sign-out. No uncaught browser errors were observed. At 390 px, tasks,
+contributions, reports, members, settings, inventory and scanning have no
+page-level horizontal overflow. Task and contribution screenshots were inspected.
+
+ESLint, standalone typechecking, diff whitespace checks and the production build
+with `npm run build -- --webpack` pass. Fixed webpack's missing Tailwind loader
+and excluded generated test artifacts from linting. Default Turbopack still
+encounters worker port-binding restrictions in this tool environment.
+
+Six live Supabase provider browser scenarios remain skipped/fixme, and physical
+camera capture remains unverified. The local auth shim and mocked provider tests
+do not certify real Supabase delivery/OAuth behavior. Full evidence, fixes and
+remaining limitations: [QA report](QA_REPORT_2026-11-05.md).
+
+
+## 2026-11-09: activity, report visuals and event waitlists
+
+`test/db/event-waitlists.test.ts` covers FIFO/rejoining, promotion and QR privacy, eligibility, capacity changes, closure, cross-club denial and failure rollback. `test/integration/activity-and-waitlists.test.ts` covers personal activity ownership/module/active-club boundaries and the real service promotion path. The real PostgreSQL suite adds competing last-seat registrations, concurrent duplicate queue joins and cancellation racing with registration. The browser suite adds the complete waitlist-to-QR workflow plus desktop/mobile activity and reports screenshots.
+
+Local verification: 322 tests passed with seven service-dependent skips; the five PostgreSQL concurrency checks were then run separately and passed. All 17 Chromium workflows, lint, typecheck, webpack production build, migration/rollback/reapply, schema agreement and diff checks passed. Two Redis integration checks were not rerun. See [the dated evidence](QA_REPORT_2026-11-09.md) and [visual tour](VISUAL_TOUR.md). To limit memory use on the local machine, run `npm test -- --maxWorkers=1`, wait for completion, and run browser/build checks separately.
+
+Demo-data follow-up: `demo-seed.test.ts` now has eight cases covering ready-to-try activity/waitlist fixtures, existing-data upgrades, idempotency/preservation, disabled modules and demo-only gating. A new first browser workflow checks Ananya's task/certificate/waitlist and Rohan's robotics task/promoted QR. All eight seed cases and all 18 browser workflows pass; the saved local demo was also checked directly without a reset. The production build, lint and typecheck pass after these changes.

@@ -33,7 +33,7 @@ How to use this guide: read sections 1–4 the night before the review. Then wor
 | Reviewer checks | Our evidence | Show this |
 |---|---|---|
 | **Min 5 tables in ER diagram** | 31 public tables implemented | [DATABASE.md §2 and §3](DATABASE.md#2-er-diagram-phase-1-implemented) (Mermaid; export a PNG from mermaid.live for slides) |
-| **RDBMS + NoSQL** | PostgreSQL + **pgvector** (requirements doc **Option 2: SQL + Vector DB**), working in the app: Club → Knowledge base. Plus JSONB for semi-structured config | Search "stealing session cookies with javascript": the XSS write-up ranks first by meaning while full-text finds no matching words. [DATABASE.md §10](DATABASE.md#10-vector--nosql-component). ⚠️ Confirm with the instructor that Option 2 satisfies "NoSQL"; the MongoDB fallback design is in the same section. |
+| **RDBMS + NoSQL** | PostgreSQL + **Redis** (separate NoSQL key-value store) for 30-second contribution-report snapshots; **pgvector** remains inside PostgreSQL for search | Open Contributions twice with Redis configured to demonstrate SQL then cached reporting. See [database walkthrough](DATABASE_WALKTHROUGH.md). |
 | **Reports in demo** (like "average salary per department") | 4 report views + 11 demo queries: AVG per org, HAVING, correlated subquery, RANK(), running total, RLS demo | `npm run demo:reports`, [demo_reports.sql](../supabase/queries/demo_reports.sql) |
 | **Novelty** | See below | Talk through §3 |
 
@@ -346,7 +346,7 @@ Both are approximate nearest-neighbour indexes. HNSW is a layered graph: better 
 The texts belong to clubs and must obey the same isolation rules. With pgvector, vectors are rows: same RLS, same transactions, joins with events/challenges, one backup, no sync job. A dedicated vector DB wins at very large scale (hundreds of millions of vectors), which we don't have.
 
 **Q61. Why not MongoDB for everything?**
-Our core data is relational with strict cross-row rules (unique memberships, no double claims, stock never negative). Postgres gives constraints, joins and multi-row ACID transactions natively. MongoDB fits documents whose shape varies (that's our fallback design for event feedback forms) but we'd have to rebuild tenant isolation in the app.
+Our core data is relational with strict cross-row rules (unique memberships, no double claims, stock never negative). Postgres gives constraints, joins and multi-row ACID transactions natively. Redis is our separate NoSQL database for disposable report snapshots; PostgreSQL remains authoritative and enforces tenant isolation.
 
 **Q62. CAP theorem / ACID vs BASE?**
 Under a network partition, a distributed system must choose between consistency and availability. ACID systems favor consistency; BASE (basically available, soft state, eventually consistent) favors availability. A club platform needs consistency for claims and approvals, so ACID.
@@ -468,4 +468,4 @@ Commit your own parts from your own Git account, in small commits with meaningfu
 - Foundation concurrency was verified on local Postgres; the current meal race test requires a new run with pgvector and `TEST_DATABASE_URL`.
 - Membership/scanner/flag quotas are identity-based; Supabase and the deployment gateway handle anonymous floods. The nonce CSP permits inline styles for branding.
 - Performance targets are defined but not measured.
-- Whether "NoSQL" in the checklist accepts pgvector is being confirmed with the instructor.
+- Redis is the separate NoSQL store; pgvector is an extension within PostgreSQL. Configure Redis before demonstrating the two-database system.

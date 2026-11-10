@@ -4,7 +4,7 @@ A platform for running student clubs and organizations: membership, events, QR-b
 
 ClubSphere is **club-agnostic**. No club, university or role name is hardcoded. A new organization is a database row created with `private.create_organization(...)`, and PostgreSQL itself (row level security, composite foreign keys, security-definer procedures) keeps every organization's data isolated.
 
-**Stack:** Next.js 16 (App Router, TypeScript) · Supabase Auth (Google + email/password) · PostgreSQL with RLS · Drizzle ORM (typed queries) · Zod · Vitest + PGlite · Playwright · GitHub Actions.
+**Stack:** Next.js 16 (App Router, TypeScript) · Supabase Auth (Google + email/password) · PostgreSQL with RLS + pgvector · Redis report cache · Drizzle ORM (typed queries) · Zod · Vitest + PGlite · Playwright · GitHub Actions.
 
 ## Status
 
@@ -23,7 +23,7 @@ npm test               # unit + database + integration tests on in-memory Postgr
 npm run demo:reports   # runs the report queries on sample data in the terminal
 ```
 
-Demo mode runs the same SQL and application code on a local PGlite database with "sign in as" demo accounts. It refuses to start if a real `DATABASE_URL` is set.
+Demo mode runs the same SQL and application code on a local PGlite database with "sign in as" demo accounts. It refuses to start if a real `DATABASE_URL` is set. Sample accounts include personal tasks, certificates, waitlists and a promoted QR registration; see the [ready-to-try accounts](docs/VISUAL_TOUR.md#ready-to-try-demo-accounts). Existing demos receive these examples without a reset.
 
 To run the app against Supabase, follow [docs/SETUP.md](docs/SETUP.md).
 
@@ -52,6 +52,7 @@ To run the app against Supabase, follow [docs/SETUP.md](docs/SETUP.md).
 | [Test strategy](docs/TEST_STRATEGY.md) | Test layers, fixtures, coverage of required scenarios |
 | [Setup](docs/SETUP.md) · [Deployment](docs/DEPLOYMENT.md) | Local development; environments, release, rollback |
 | [Prototype demo](docs/PROTOTYPE_DEMO.md) · [Roadmap](docs/ROADMAP.md) | Review-1 walkthrough · what remains and how to resume |
+| [Visual tour](docs/VISUAL_TOUR.md) | Personal activity, event waitlists and visual reports |
 | [Viva guide](docs/VIVA_GUIDE.md) | Review demo script, novelty, 70-question bank with answers, practice queries |
 
 ## Repository layout
@@ -74,3 +75,5 @@ docs/                  documentation
 
 
 Optional product modules default off for existing clubs. An owner enables them under **Club → Settings**; fresh demo clubs enable them automatically. Inventory managers create stock items and meal slots, then volunteers use **Scan QR → Meal**. Completed events can issue attendee certificates and receive feedback. CTF flags are accepted during published event times, and solvers can publish write-ups after the event ends. Contribution reports are under **Contributions** for analytics readers. Public certificates are available at `/verify/[code]`.
+
+For the PostgreSQL + Redis use cases, trigger/routine explanations, pgvector code path, and contribution-report demo, see [Database walkthrough](docs/DATABASE_WALKTHROUGH.md). Redis must be configured to demonstrate both databases; it is optional for offline PostgreSQL-only use.

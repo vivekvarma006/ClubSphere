@@ -131,6 +131,29 @@ describe.skipIf(!url)("concurrent operations on real Postgres", () => {
     }
   });
 
+  it("event registrations serialize the last seat and concurrent waitlist joins are idempotent", async () => {
+    const event = await scalarAs(ownerA, tx => tx`insert into public.events(organization_id,title,starts_at,ends_at,capacity,status)
+      values(${orgId},'Waitlist race',now()+interval '1 day',now()+interval '2 days',1,'published') returning id as v`);
+    try {
+      const race = await Promise.allSettled([ownerA, ownerB].map(user => scalarAs(user,tx => tx`select private.register_for_event(${event}) as v`)));
+      expect(race.map(codeOf).sort()).toEqual(['CS409','ok']);
+      const winner = String(one(await sql`select user_id from public.event_registrations where event_id=${event} and status='registered'`).user_id);
+      const waiter = winner === ownerA ? ownerB : ownerA;
+      await Promise.all([1,2].map(() => asUser(waiter,tx => tx`select private.join_event_waitlist(${event})`)));
+      expect(await count(sql`select count(*)::int as n from public.event_waitlist where event_id=${event} and status='waiting'`)).toBe(1);
+      const registration = String(one(await sql`select id from public.event_registrations where event_id=${event} and user_id=${winner}`).id);
+      const attempts = await Promise.allSettled([
+        asUser(winner,tx => tx`select private.cancel_registration(${registration})`),
+        asUser(applicant,tx => tx`select private.register_for_event(${event})`),
+      ]);
+      expect(attempts.map(codeOf)).toEqual(['ok','CS409']);
+      expect(await count(sql`select count(*)::int as n from public.event_registrations where event_id=${event} and status='registered'`)).toBe(1);
+      expect(String(one(await sql`select user_id from public.event_registrations where event_id=${event} and status='registered'`).user_id)).toBe(waiter);
+    } finally {
+      await sql`delete from public.events where id=${event}`;
+    }
+  });
+
   it("two owners suspending each other at once cannot leave the club ownerless (write skew)", async () => {
     const membershipOf = async (user: string) =>
       String(one(await sql`select id from public.organization_memberships where organization_id = ${orgId} and user_id = ${user}`).id);

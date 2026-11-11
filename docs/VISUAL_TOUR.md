@@ -2,6 +2,10 @@
 
 Screenshots use fictional accounts in a local demo database. No cloud account is required: run `npm run demo`, open `/login`, and choose one of the demo identities.
 
+## Current black and green design
+
+The app and demo now share a dark workspace and contribution heatmaps. See the [redesign notes and current screenshots](REDESIGN.md). The workflow screenshots below predate the redesign and document the same underlying actions.
+
 ## Ready-to-try demo accounts
 
 - **Ananya Rao:** assigned security-lab task, workshop certificate, recent check-ins, and position **#1** for **Security Lab: Waitlist Demo**.

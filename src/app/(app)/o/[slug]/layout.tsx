@@ -29,12 +29,12 @@ export default async function ClubLayout({ children, params }: LayoutProps<"/o/[
     ...(can("analytics.read") ? [{ href: `/o/${slug}/reports`, label: "Reports" }] : []),
   ];
 
-  const style = club.primaryColor ? ({ "--accent": club.primaryColor } as CSSProperties) : undefined;
+  const style = club.primaryColor ? ({ "--club-color": club.primaryColor } as CSSProperties) : undefined;
 
   return (
     <div style={style} className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="h-8 w-1.5 rounded-full bg-[var(--accent)]" />
+        <span className="h-8 w-1.5 rounded-full bg-[var(--club-color,var(--accent))]" />
         {club.logoUrl ? <Image src={club.logoUrl} alt="" width={32} height={32} unoptimized className="h-8 w-8 rounded object-contain" /> : null}
         <h1 className="text-xl font-semibold tracking-tight">{club.organization.name}</h1>
         {club.shortName ? <span className="text-xs text-zinc-500">{club.shortName}</span> : null}

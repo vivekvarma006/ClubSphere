@@ -1,10 +1,12 @@
+import { Icon, type IconName } from "@/components/icons";
 import { Card, CardTitle, EmptyState } from "@/components/ui";
 
 export function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
-  return <Card>
-    <p className="text-sm text-zinc-600 dark:text-zinc-400">{label}</p>
-    <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{value}</p>
-    <p className="mt-2 text-xs text-zinc-500">{hint}</p>
+  const icon: IconName = /task|review|Awaiting/i.test(label) ? "bolt" : /certificate|approval/i.test(label) ? "award" : /member/i.test(label) ? "users" : "calendar";
+  return <Card className="metric-card">
+    <div className="flex items-center justify-between gap-2"><p className="text-xs font-medium text-zinc-400">{label}</p><span className="metric-icon"><Icon name={icon} /></span></div>
+    <p className="mt-4 text-[32px] font-semibold leading-none tracking-tight tabular-nums">{value}</p>
+    <p className="mt-3 text-xs text-zinc-500">{hint}</p>
   </Card>;
 }
 

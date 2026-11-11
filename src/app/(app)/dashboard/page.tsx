@@ -1,3 +1,4 @@
+import { ActivityHeatmap } from "@/components/activity-heatmap";
 import Link from "next/link";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Metric } from "@/components/report-visuals";
@@ -26,14 +27,15 @@ export default async function Dashboard({ searchParams }: PageProps<"/dashboard"
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-semibold tracking-tight">My Activity</h1>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Your clubs, registrations and next steps in one place.</p></div>
+      <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow mb-2">Your club life, connected</p><h1 className="text-3xl font-semibold tracking-tight">My Activity</h1>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Your clubs, registrations and next steps in one place.</p></div><ButtonLink href="/join" variant="secondary">Explore clubs ↗</ButtonLink></div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Upcoming registrations" value={activity.stats.upcoming} hint="Across your active clubs" />
         <Metric label="Tasks to complete" value={activity.stats.pendingTasks} hint="Assigned to you" />
         <Metric label="Events attended" value={activity.stats.attended} hint="Your recorded check-ins" />
         <Metric label="Certificates earned" value={activity.stats.certificates} hint="From clubs with certificates enabled" />
       </div>
+      <ActivityHeatmap days={activity.calendar} />
       {params.requested ? <Notice tone="success">Request sent. A club officer will review it.</Notice> : null}
 
       <div className="grid gap-6 lg:grid-cols-3">

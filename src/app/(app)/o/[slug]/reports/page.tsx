@@ -1,3 +1,4 @@
+import { ActivityHeatmap } from "@/components/activity-heatmap";
 import { load, pageContext } from "@/app/page-utils";
 import { Card, CardTitle, EmptyState, PageHeader, Table, Td, formatDate } from "@/components/ui";
 import { ApplicationTrend, BarList, EventFill, Metric } from "@/components/report-visuals";
@@ -28,6 +29,7 @@ export default async function ReportsPage({ params }: PageProps<"/o/[slug]/repor
         <Metric label="Approval rate" value={r.summary?.approvalRatePct !== null && r.summary?.approvalRatePct !== undefined ? `${r.summary.approvalRatePct}%` : "—"} hint="Approved share of reviewed requests" />
         <Metric label="Average review time" value={r.turnaround?.avgHoursToReview != null ? `${r.turnaround.avgHoursToReview} h` : "—"} hint={`${r.turnaround?.reviewedRequests ?? 0} reviewed requests`} />
       </div>
+      <ActivityHeatmap days={r.calendar} club />
       <div className="grid gap-6 lg:grid-cols-2">
         <ApplicationTrend rows={r.monthly} />
         <EventFill rows={r.events.filter(e => e.status === "published" || e.status === "completed").slice(0, 6)} />

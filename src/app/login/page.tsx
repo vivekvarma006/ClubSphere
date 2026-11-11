@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { BrandMark } from "@/components/icons";
 import { redirect } from "next/navigation";
 import { createDemoAccount, signInAsDemoUser } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/forms";
@@ -21,7 +23,15 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
   if (!isDemoMode()) {
     return (
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-4 px-6 py-24">
+      <main className="mx-auto grid min-h-screen w-full max-w-6xl items-center gap-12 px-6 py-12 lg:grid-cols-2 lg:gap-24">
+        <div className="public-hero rounded-3xl p-6 py-10 lg:p-10">
+          <Link href="/" className="brand-lockup mb-16"><BrandMark /><span>ClubSphere</span></Link>
+          <p className="eyebrow mb-4">Your campus. Your community.</p>
+          <h2 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">Find your people.<br /><span className="text-emerald-400">Make your mark.</span></h2>
+          <p className="mt-6 max-w-sm text-sm leading-relaxed text-zinc-400">Great clubs start with people who show up. Discover events, build something together, and see every contribution count.</p>
+          <div className="mt-10 flex gap-2" aria-hidden="true">{Array.from({ length: 15 }, (_, i) => <span key={i} className={`h-3 w-3 rounded-sm ${i % 4 === 0 ? "bg-emerald-400" : i % 3 === 0 ? "bg-emerald-700" : "bg-emerald-950"}`} />)}</div>
+        </div>
+        <div className="mx-auto w-full max-w-md space-y-5">
         <h1 className="text-2xl font-semibold">
           {query.mode === "signup"
             ? "Create your account"
@@ -42,6 +52,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           }
           next={next}
         />
+        </div>
       </main>
     );
   }
@@ -49,6 +60,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const personas = await listDemoPersonas();
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12">
+      <Link href="/" className="brand-lockup mb-10"><BrandMark /><span>ClubSphere</span></Link>
       <div className="mb-8 space-y-2">
         <Badge tone="amber">Demo mode</Badge>
         <h1 className="text-3xl font-semibold tracking-tight">

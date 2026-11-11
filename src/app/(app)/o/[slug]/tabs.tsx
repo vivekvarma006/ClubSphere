@@ -14,16 +14,17 @@ export function ClubTabs({ tabs }: { tabs: Tab[] }) {
   const pathname = usePathname();
   const active = (href: string) => (href.split("/").length === 3 ? pathname === href : pathname.startsWith(href));
   return (
-    <nav className="flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
+    <nav aria-label="Club navigation" className="flex gap-1 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950 p-1">
       {tabs.map((t) => (
         <Link
           key={t.href}
           href={t.href}
+          aria-current={active(t.href) ? "page" : undefined}
           className={cx(
-            "-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm",
+            "whitespace-nowrap rounded-lg px-3 py-2.5 text-xs transition-colors",
             active(t.href)
-              ? "border-[var(--accent)] font-medium text-zinc-900 dark:text-zinc-100"
-              : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200",
+              ? "bg-emerald-400/10 font-medium text-emerald-300"
+              : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
           )}
         >
           {t.label}

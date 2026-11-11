@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { verifiedActor } from "@/server/auth/actor";
 import * as schema from "@/server/db/schema";
 import type { Database } from "@/server/db/types";
+import { getMembershipReports } from "@/server/services/reports";
 import { getMyActivity } from "@/server/services/activity";
 import { changeEventWaitlist, getEvent } from "@/server/services/events";
 import { asUser, scalar } from "../db/harness";
@@ -84,4 +85,51 @@ it("removes completed tasks from next steps",async () => {
   await asUser(pg,w.memberA,tx => tx.query("select private.complete_task($1,$2)",[w.orgA.id,task]));
   expect((await getMyActivity(db,actor(w.memberA))).stats.pendingTasks).toBe(0);
   expect((await getMyActivity(db,actor(w.memberA))).tasks).toEqual([]);
+});
+
+it("returns a zero-filled UTC year, aggregates real actions once, and excludes future and old records",async () => {
+  const task=await seedPersonalActivity(w.memberA);
+  await pg.query("update public.task_assignments set completed_at=((now() at time zone 'UTC')::date-1)::timestamp at time zone 'UTC' where task_id=$1",[task]);
+  await pg.query("update public.event_attendance set checked_in_at=((now() at time zone 'UTC')::date-1)::timestamp at time zone 'UTC'");
+  const activity=await getMyActivity(db,actor(w.memberA));
+  expect(activity.calendar).toHaveLength(365);
+  const active=activity.calendar.filter(day=>day.attendance+day.tasks+day.solves>0);
+  expect(active).toHaveLength(1);
+  expect(active[0]).toMatchObject({attendance:1,tasks:1,solves:0}); // certificate is not a second attendance
+  expect(activity.calendar.at(-1)).toMatchObject({attendance:0,tasks:0,solves:0});
+  await pg.query("update public.event_attendance set checked_in_at=now()-interval '366 days'");
+  await pg.query("update public.task_assignments set completed_at=now()+interval '2 days' where task_id=$1",[task]);
+  expect((await getMyActivity(db,actor(w.memberA))).calendar.every(day=>day.attendance+day.tasks+day.solves===0)).toBe(true);
+});
+
+it("personal heatmaps hide other members, disabled tasks and suspended clubs",async () => {
+  const task=await seedPersonalActivity(w.memberA);
+  await pg.query("update public.task_assignments set completed_at=now() where task_id=$1",[task]);
+  expect((await getMyActivity(db,actor(w.officerA))).calendar.every(day=>day.attendance+day.tasks+day.solves===0)).toBe(true);
+  await pg.query("update public.organizations set settings='{}' where id=$1",[w.orgA.id]);
+  expect((await getMyActivity(db,actor(w.memberA))).calendar.reduce((sum,day)=>sum+day.tasks,0)).toBe(0);
+  await pg.query("update public.organizations set status='suspended' where id=$1",[w.orgA.id]);
+  expect((await getMyActivity(db,actor(w.memberA))).calendar.every(day=>day.attendance+day.tasks+day.solves===0)).toBe(true);
+});
+
+it("club heatmaps require reporting permission and remain isolated to the requested organization",async () => {
+  await seedPersonalActivity(w.memberA);
+  const report=await getMembershipReports(db,actor(w.officerA),w.orgA.slug);
+  expect(report.calendar.reduce((sum,day)=>sum+day.attendance,0)).toBe(1);
+  const other=await getMembershipReports(db,actor(w.officerB),w.orgB.slug);
+  expect(other.calendar.every(day=>day.attendance+day.tasks+day.solves===0)).toBe(true);
+  await expect(getMembershipReports(db,actor(w.memberA),w.orgA.slug)).rejects.toMatchObject({code:"FORBIDDEN"});
+});
+
+it("heatmaps include CTF solves only when the module is enabled and under the UTC solve date",async () => {
+  await pg.query("update public.organizations set settings=jsonb_set(settings,'{features,ctf}','true') where id=$1",[w.orgA.id]);
+  const challenge=await scalar<string>(pg,`insert into public.ctf_challenges(organization_id,event_id,title,description,points,flag_hash)
+    values($1,$2,'Calendar challenge','Solve this',10,sha256(convert_to('flag','UTF8'))) returning id as v`,[w.orgA.id,event]);
+  await pg.query(`insert into public.ctf_solves(organization_id,challenge_id,user_id,points,solved_at)
+    values($1,$2,$3,10,((now() at time zone 'UTC')::date-2)::timestamp at time zone 'UTC')`,[w.orgA.id,challenge,w.memberA]);
+  const calendar=(await getMyActivity(db,actor(w.memberA))).calendar;
+  expect(calendar.at(-3)?.solves).toBe(1);
+  expect((await getMyActivity(db,actor(w.officerA))).calendar.every(day=>day.solves===0)).toBe(true);
+  await pg.query("update public.organizations set settings=jsonb_set(settings,'{features,ctf}','false') where id=$1",[w.orgA.id]);
+  expect((await getMyActivity(db,actor(w.memberA))).calendar.every(day=>day.solves===0)).toBe(true);
 });

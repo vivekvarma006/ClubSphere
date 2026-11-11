@@ -11,7 +11,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
         {description ? <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
@@ -21,7 +21,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <section className={cx("rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900", className)}>
+    <section className={cx("ui-card", className)}>
       {children}
     </section>
   );
@@ -50,7 +50,7 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
 }
 
 const BUTTON_VARIANTS = {
-  primary: "bg-[var(--accent)] text-white hover:opacity-90",
+  primary: "bg-[var(--accent)] text-[#07150c] hover:brightness-110",
   secondary: "border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800",
   danger: "bg-red-600 text-white hover:bg-red-700",
   ghost: "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800",
@@ -60,8 +60,8 @@ export type ButtonVariant = keyof typeof BUTTON_VARIANTS;
 
 export function buttonClass(variant: ButtonVariant = "primary", size: "sm" | "md" = "md"): string {
   return cx(
-    "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
-    size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-2 text-sm",
+    "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-[background-color,color,transform] active:scale-[0.96] motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-50",
+    size === "sm" ? "min-h-10 px-3 py-2 text-xs" : "min-h-11 px-4 py-2 text-sm",
     BUTTON_VARIANTS[variant],
   );
 }

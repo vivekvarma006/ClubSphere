@@ -14,6 +14,8 @@ import { withUserContext } from "@/server/db/user-context";
 import { handleServiceError } from "@/server/errors";
 import { OrganizationSlug } from "@/server/validation/inputs";
 
+import { readActivityCalendar } from "./activity-calendar";
+
 /**
  * Organization reports (membership and event attendance), read from the
  * security_invoker views in 20261024000900_reports.sql and
@@ -54,7 +56,8 @@ export async function getMembershipReports(db: Database, actor: VerifiedActor, o
         .orderBy(desc(reportEventAttendance.startsAt))
         .limit(20);
 
-      return { organization: access.organization, summary: summary ?? null, turnaround: turnaround ?? null, roles, monthly, events };
+      const calendar = await readActivityCalendar(tx, actor, orgId);
+      return { calendar, organization: access.organization, summary: summary ?? null, turnaround: turnaround ?? null, roles, monthly, events };
     });
   } catch (error) {
     throw handleServiceError("reports.membership", error);

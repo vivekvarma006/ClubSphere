@@ -6,6 +6,8 @@ import type { Database } from "@/server/db/types";
 import { queryRows, withUserContext } from "@/server/db/user-context";
 import { handleServiceError } from "@/server/errors";
 
+import { readActivityCalendar } from "./activity-calendar";
+
 const club = { slug: z.string(), organizationName: z.string() };
 const timestamp = z.coerce.date();
 
@@ -67,7 +69,8 @@ export async function getMyActivity(db: Database, actor: VerifiedActor) {
         where w.user_id=${actor.userId}::uuid and w.status='waiting' and q.status='waiting'
         order by e.starts_at,e.id limit 8`,
         z.object({ id: z.uuid(), title: z.string(), startsAt: timestamp, position: z.number(), ...club }));
-      return { stats: stats!, tasks, certificates, recent, waitlists };
+      const calendar = await readActivityCalendar(tx, actor);
+      return { stats: stats!, tasks, certificates, recent, waitlists, calendar };
     });
   } catch (error) {
     throw handleServiceError("activity.mine", error);
